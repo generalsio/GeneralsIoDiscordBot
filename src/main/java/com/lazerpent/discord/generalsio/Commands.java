@@ -11,8 +11,9 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.net.URLEncoder;
 import java.util.List;
+import java.lang.Integer;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -22,9 +23,11 @@ import com.lazerpent.discord.generalsio.Utils.Perms;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
@@ -172,75 +175,219 @@ public class Commands extends ListenerAdapter {
 
     @Category(cat="game", name="Game")
     public static class Game {
-        private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server, String[] cmd) {
-            String link = cmd.length > 1 ? cmd[1] :  Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
-            String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
-            if (map != null && (map.equals("-") || map.equals("."))) map = null;
-
-            String url = "https://" + server.host() + "/games/" + link;
-            try {
-                if (map != null) url += "?map=" + URLEncoder.encode(map, "UTF-8").replaceAll("\\+", "%20");
-            } catch(Exception err) {
-                err.printStackTrace();
+        private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server, @NotNull String link, @NotNull String map, int speed) {
+            String url = "https://" + server.host() + "/games/" + Utils.encodeURI(link) + "?speed=" + speed;
+            if (link.equals("main") || link.equals("1v1")) {
+                map = null;
+                url = "https://" + server.host() + "/?queue=" + Utils.encodeURI(link);
+            } else if (link.equals("2v2")) {
+                map = null;
+                url = "https://" + server.host() + "/teams/matchmaking"; 
+            } else {
+                if (map != null) {
+                    try {
+                        url += "&map=" + Utils.encodeURI(map);
+                    } catch(Exception err) {} // silently drop map
+                }
             }
+
+            EmbedBuilder embed = 
+            new EmbedBuilder()
+                .setTitle("Custom Match: " + link, url).setColor(Constants.Colors.PRIMARY)
+                .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
+                    msg.getAuthor().getAvatarUrl());
+            embed = embed.setDescription(url);
+            if (speed != 1)
+                embed = embed.addField("Speed", Integer.toString(speed), true);
+            if (map != null)
+                embed = embed.addField("Map", map, true);
 
             return new MessageBuilder()
                 .setActionRows(ActionRow.of(
                     Button.link(url, "Play"),
-                    Button.link(url + "?spectate=true", "Spectate")
+                    Button.link(url + "&spectate=true", "Spectate")
                 ))
                 .setEmbeds(
-                    new EmbedBuilder()
-                        .setTitle("Custom Match", url).setColor(new Color(50, 50, 150))
-                        .setDescription("Link: " + url + (map == null ? "" : "\nMap: " + map))
-                        .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
-                        msg.getAuthor().getAvatarUrl()).build()
+                    embed.build()
                 )
                 .build();
         }
 
-        @Command(name={"custom", "private"}, args={"map?", "code?"}, desc="Generate custom match", perms=Utils.Perms.USER)
+        @Command(name={"na", "custom", "private"}, args={"code?", "map?"}, desc="Generate match", perms=Utils.Perms.USER)
         public static void handle_custom(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-            String map = Arrays.stream(cmd).skip(1).findFirst().orElse(null);
-            String link = Arrays.stream(cmd).skip(2).findFirst().orElse(null);
-            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, cmd)).queue();
+            String link = cmd.length > 1 ? cmd[1] :  Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
+            String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
+            if (map != null && (map.equals("-") || map.equals("."))) map = null;
+
+            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, link, map, 1)).queue();
         }
-    
-        @Command(name={"bot", "botcustom", "botprivate"}, args={"code?"}, desc="Generate custom match on bot server", perms=Utils.Perms.USER)
+
+        
+        @Command(name={"bot", "botcustom", "botprivate"}, args={"code?", "map?"}, desc="Generate custom match on bot", perms=Utils.Perms.USER)
         public static void handle_botcustom(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-            String link = Arrays.stream(cmd).skip(1).findFirst().orElse(null);
-            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.BOT, cmd)).queue();
+            String link = cmd.length > 1 ? cmd[1] :  Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
+            String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
+            if (map != null && (map.equals("-") || map.equals("."))) map = null;
+            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.BOT, link, map, 1)).queue();
         }
             
+        @Command(name={"plots"}, args={"code?"}, desc="Create a 4x Plots Lazerpent game", perms=Utils.Perms.USER)
+        public static void handle_plots(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+            String link = cmd.length > 1 ? cmd[1] : "plots";
+            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, link, "Plots Lazerpent", 4)).queue();
+        }
+
         @Command(name={"ping"}, desc="Ping role", perms=Utils.Perms.USER)    
         public static void handle_ping(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-            RoleHandler.ping(msg);
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+
+            Utils.Mode mode = GUILD_INFO.channelToMode(msg.getChannel().getIdLong());
+            if (mode == null) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**!ping** can only be used in a game mode channel")).queue();
+                return;
+            }
+
+            if (!RoleHandler.tryPing(mode)) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Each role can only be pinged once every 10 minutes")).queue();
+                return;
+            }
+
+            Role role = msg.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
+            msg.getChannel().sendMessage(role.getAsMention() + " (pinged by " + Objects.requireNonNull(msg.getMember()).getAsMention() + ")").queue();
         }
 
         @Command(name={"setuproles"}, desc="Setup roles menu", perms=Utils.Perms.MOD)    
         public static void handle_setuprole(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-            RoleHandler.setup(msg);
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+
+            StringBuilder sb = new StringBuilder();
+            for (Utils.Mode value: Utils.Mode.values()) {
+                sb.append(msg.getGuild().getEmotesByName(value.toString(), false).get(0).getAsMention() + " - <@&" + GUILD_INFO.roles.get(value) + ">\n");
+            }
+    
+            Message m = msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Generals.io Role Selector")
+                    .setDescription("To select one or more roles, simply react with the role you would like to add or remove. \n\nEach role has a specific channel dedicated to that game mode. " +
+                            "You can also ping all players with the role using **!ping** in that game mode's channel.\n\nWant the <@&788259902254088192> role? DM or ping <@356517795791503393>. The tester role is pinged when <@356517795791503393> is testing a beta version on the BOT server.\n\n" +
+                            sb.toString()
+                    ).setFooter("You must wait 3 seconds between adding a role and removing it.")
+                    .setThumbnail(msg.getGuild().getIconUrl()).build()).complete();
+    
+            for (Utils.Mode value: Utils.Mode.values()) {
+                m.addReaction(msg.getGuild().getEmotesByName(value.toString(), false).get(0)).queue();
+            }
         }
 
     }
 
-    @Command(name={"addname"}, args={"username"}, cat="user", desc="Register generals.io username")
-    public static void handle_addname(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        Registration.addName(msg, cmd);
+    @Category(cat="user", name="Users")
+    public static class Users {    
+        @Command(name={"profile", "user"}, args={"username? | @mention?"}, cat="user", perms=Utils.Perms.USER, desc="Show username of user, or vice versa")
+        public static void handle_user(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+            long discordId;
+            String name;
+
+            if (cmd.length == 1) {
+                discordId = msg.getAuthor().getIdLong();
+                name = Database.getGeneralsName(discordId);
+                if (name == null) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, Objects.requireNonNull(msg.getMember()).getAsMention() + " has not registered their generals.io user")).queue();
+                    return;
+                }
+            } else {
+                List<Member> members = msg.getMentionedMembers();
+                if (members.size() == 0) {
+                    name = Arrays.stream(cmd).skip(1).collect(Collectors.joining(" "));
+                    discordId = Database.getDiscordId(name);
+                    if (discordId == -1) {
+                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, name + " is not registered to any discord user")).queue();
+                        return;
+                    }
+                } else if (members.size() != 1) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You can only lookup one user at a time")).queue();
+                    return;
+                } else {
+                    discordId = members.get(0).getIdLong();
+                    name = Database.getGeneralsName(discordId);
+                    if (name == null) {
+                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, members.get(0).getAsMention() + " has not registered their generals.io user")).queue();
+                        return;
+                    }
+                }
+            }
+
+            msg.getChannel().sendMessageEmbeds(
+                new EmbedBuilder().setTitle("Profile: " + name).setColor(Constants.Colors.PRIMARY)
+                    .addField("Discord", Objects.requireNonNull(msg.getGuild().getMemberById(discordId)).getAsMention(), true)
+                    .addField("Link", "https://generals.io/profiles/" + Utils.encodeURI(name), true).build()).queue();
+        }
+
+        @Command(name={"addname"}, args={"username"}, cat="user", desc="Register generals.io username")
+        public static void handle_addname(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+            if (cmd.length < 2) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Missing username")).queue();
+                return;
+            }
+            String username;
+            if ((username = Database.getGeneralsName(Objects.requireNonNull(msg.getMember()).getIdLong())) != null) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You're already registered as \\`" + username + "'. Ask a <@&309536399005188097> to change your username.")).queue();
+                return;
+            }
+    
+            //Get the generals.io username, skipping the messaged name
+            username = Arrays.stream(cmd).skip(1).collect(Collectors.joining(" "));
+    
+            long l;
+            if ((l = Database.getDiscordId(username)) != -1) {
+                if (msg.getGuild().retrieveBanById(l).complete() != null) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + username + "' is banned")).queue();
+                    return;
+                }
+                Member m = msg.getGuild().getMemberById(l);
+                if (m != null) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + username + "' is already registered to " + m.getAsMention())).queue();
+                    return;
+                }
+            }
+    
+            Database.addDiscordGenerals(Objects.requireNonNull(msg.getMember()).getIdLong(), username);
+            msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Username Added").setColor(Constants.Colors.SUCCESS)
+                .setDescription(msg.getMember().getAsMention() + " is now generals.io user \\`" + username + "'").build()).queue();
+        }
+    
+        @Command(name={"setname"}, cat="user", args={"@mention", "username"}, desc="Change generals.io username of user", perms=Utils.Perms.MOD)
+        public static void handle_setname(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+            if (msg.getMentionedMembers().size() == 0) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must mention the member to update")).queue();
+                return;
+            }
+    
+            if (cmd.length < 2) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide the generals.io username to update")).queue();
+                return;
+            }
+    
+            Member m = msg.getMentionedMembers().get(0);
+            String tmp = m.getEffectiveName();
+            int a = tmp.length();
+            tmp = tmp.replaceAll(" ", "");
+            a -= tmp.length();
+            String name = Arrays.stream(cmd).skip(2 + a).collect(Collectors.joining(" "));
+    
+            if (Database.noMatch(m.getIdLong(), name)) {
+                Database.addDiscordGenerals(m.getIdLong(), name);
+            } else {
+                Database.updateDiscordGenerals(m.getIdLong(), m.getIdLong(), name);
+            }
+            msg.getChannel().sendMessage(new MessageBuilder()
+                .setContent(msg.getMember().getAsMention())                
+                .setEmbeds(
+                    new EmbedBuilder().setTitle("Username Updated").setColor(Constants.Colors.SUCCESS)
+                    .setDescription(msg.getMember().getAsMention() + " is now generals.io user \\`" + name + "'").build()).build()).queue();
+        }
+
     }
 
-    @Command(name={"profile", "user"}, args={"username? | @mention?"}, cat="user", desc="Show username of user, or vice versa")
-    public static void handle_user(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        // TODO: add link to user
-        Registration.lookup(msg, cmd);
-    }
-
-    @Command(name={"setname"}, cat="user", args={"@mention", "username"}, desc="Set name of user", perms=Utils.Perms.MOD)
-    public static void handle_setname(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        Registration.set(msg, cmd);
-    }
-
-    @Command(name={"nickwupey"}, cat="sadism", desc="Bully Wuped", perms=Utils.Perms.MOD)    
+    @Command(name={"nickwupey"}, cat="users", desc="Bully Wuped", perms=Utils.Perms.MOD)    
     public static void handle_nickwupey(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         if (msg.getAuthor().getIdLong() == 356517795791503393L) {
             nickWupey = !nickWupey;
@@ -292,7 +439,7 @@ public class Commands extends ListenerAdapter {
                                 .setTitle("Unknown generals.io Username")
                                 .setDescription("You must register your generals.io username." +
                                                 " \nUse ``!addname username`` to register.\nExample: ```!addname MyName321```")
-                                .setColor(new Color(123, 11, 11)).build()).queue();
+                                .setColor(Constants.Colors.ERROR).build()).queue();
                 return;
             }
         }
@@ -307,141 +454,6 @@ public class Commands extends ListenerAdapter {
         } catch(IllegalAccessException | InvocationTargetException e) {
             e.printStackTrace();
         }
-
-        // Only change the case on the command, leave the parameters the same
-/*        switch (command[0].toLowerCase()) {
-            case "help":
-                information.help(msg);
-                break;
-            case "info":
-                information.info(msg);
-                break;
-            case "private":
-            case "custom":
-                information.privateMatch(msg, command);
-                break;
-
-            case "privatebot":
-            case "custombot":
-            case "botcustom":
-                information.privateMatchBot(msg, command);
-                break;
-//            case "report":
-//                feedBack.report(msg, command);
-//                break;
-            case "addname":
-            case "registername":
-                Registration.addName(msg, command);
-                break;
-            case "lookup":
-            case "profile":
-            case "user":
-                Registration.lookup(msg, command);
-                break;
-            case "setname":
-            case "update":
-                Registration.set(msg, command);
-                break;
-
-            case "ping":
-                RoleHandler.ping(msg);
-                break;
-
-            case "setuprolemessage":
-                RoleHandler.setup(msg);
-                break;
-
-            case "nickwupey":
-                if (msg.getAuthor().getIdLong() == 356517795791503393L) {
-                    nickWupey = !nickWupey;
-                    msg.getChannel().sendMessage("Switched auto-nick to " + nickWupey).queue();
-                    if (nickWupey) {
-                        msg.getGuild().modifyNickname(Objects.requireNonNull(msg.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
-                    }
-                }
-                break;
-
-//            case "rules":
-//                msg.delete().queue();
-//                List<Webhook> webhooks = msg.getTextChannel().retrieveWebhooks().complete();
-//
-//                Optional<Webhook> webhookOptional = webhooks.stream().filter(w -> w.getName().equals("Discord Rules")).findAny();
-//                Webhook hook = webhookOptional.orElseGet(() -> msg.getTextChannel().createWebhook("Discord Rules").complete());
-//                WebhookClient client = new WebhookClientBuilder(hook.getIdLong(), Objects.requireNonNull(hook.getToken())).build();
-//
-//
-//                WebhookEmbed rules = new WebhookEmbedBuilder()
-////                        .setTitle(new WebhookEmbed.EmbedTitle("Generals.io Server Rules", null))
-//                        .setColor(new Color(0, 128, 128).getRGB())
-//                        .setFooter(new WebhookEmbed.EmbedFooter("Rules may change at any time | Rules last updated", msg.getGuild().getIconUrl()))
-//                        .setTimestamp(Instant.now())
-//                        .setDescription("1. Do your best to be nice.\n" +
-//                                        "\n" +
-//                                        "2. Don't harass anyone.\n" +
-//                                        "\n" +
-//                                        "3. Don't post NSFW, inappropriate, or otherwise offensive content in **any channel**.\n" +
-//                                        "\n" +
-//                                        "4. Swearing is allowed but don't be excessive/malicious and absolutely no ethnic/LGBT-related/religious slurs.\n" +
-//                                        "\n" +
-//                                        "5. Keep all unrelated links / advertising to a **minimum**, and do not post outside of <#532835865274220545>.\n" +
-//                                        "\n" +
-//                                        "6. Do not use more than one Discord account on this server (i.e. no alts).\n" +
-//                                        "\n" +
-//                                        "7. No spam: just use your head and don't be ridiculous.\n" +
-//                                        "\n" +
-//                                        "8. For lengthy off-topic discussions, move to <#532835865274220545>.\n" +
-//                                        "\n" +
-//                                        "9. No encouraging or helping anyone to cheat in any way.\n")
-//                        .build();
-//
-//                WebhookEmbed mods = new WebhookEmbedBuilder()
-////                        .setTitle(new WebhookEmbed.EmbedTitle("Generals.io Server Moderators", null))
-//                        .setColor(new Color(0, 128, 128).getRGB())
-//                        .setDescription("Our <@&309536399005188097>s are here to support you and happy to help with any problem. If you see someone breaking the rules, or just have a question about the rules, feel free to message one of them. \n\n**For in-game related questions/support, do not message our moderators. Send an email to __support@generals.io__.**")
-//                        .addField(new WebhookEmbed.EmbedField(false, "Current Moderators", "<@430608929853014026> \n" + "<@175430325755838464>"))
-//
-//                        .setFooter(new WebhookEmbed.EmbedFooter("All rules and punishments are at our moderators' discretion and may be different depending on circumstances.", msg.getGuild().getIconUrl()))
-//                        .build();
-//                WebhookMessageBuilder b = new WebhookMessageBuilder();
-//
-//                b.addFile(new File("C:\\Users\\chris\\Pictures\\Screenshot 2021-03-13 164808.png"));
-//                b.setAvatarUrl(msg.getGuild().getIconUrl());
-//                client.send(b.build());
-//
-//                b = new WebhookMessageBuilder();
-//
-//                b.addEmbeds(rules);
-//                b.setAvatarUrl(msg.getGuild().getIconUrl());
-//                client.send(b.build());
-//
-//                b = new WebhookMessageBuilder();
-//                b.addFile(new File("C:\\Users\\chris\\Pictures\\Screenshot 2021-03-13 164313.png"));
-//                b.setAvatarUrl(msg.getGuild().getIconUrl());
-//                client.send(b.build());
-//
-//
-//                b = new WebhookMessageBuilder();
-//                b.addEmbeds(mods);
-//                b.setAvatarUrl(msg.getGuild().getIconUrl());
-//                client.send(b.build());
-//
-//                b = new WebhookMessageBuilder();
-//                b.append("https://discord.gg/QP63V5Y");
-//                b.setAvatarUrl(msg.getGuild().getIconUrl());
-//                b.setUsername("Discord Invite");
-//                client.send(b.build());
-//
-//                client.close();
-
-
-//            case "apply":
-//                ApplicationHandler.apply(msg);
-//                break;
-//
-//            case "cancelapply":
-//                ApplicationHandler.cancelapply(msg);
-//                break;*/
-// }
     }
 
 

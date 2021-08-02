@@ -26,9 +26,9 @@ public class RoleHandler {
                                 .setTitle("Unknown generals.io Username")
                                 .setDescription("To add roles, you must register your generals.io username." +
                                         " \nUse ``!addname username`` to register.\nExample: ```!addname MyName321```")
-                                .setColor(new Color(123, 11, 11)).build()).queue());
+                                .setColor(Constants.Colors.ERROR).build()).queue());
                 return;
-            }            
+            }
             // Get which role corresponds to the reaction
             Utils.Mode mode = Utils.Mode.fromString(event.getReactionEmote().getName());
             Role r = event.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
@@ -48,58 +48,29 @@ public class RoleHandler {
 
                 event.getUser().openPrivateChannel().queue(c -> c.sendMessageEmbeds(new EmbedBuilder()
                         .setTitle("Role Removed")
-                        .setColor(Color.RED)
-                        .setDescription("You have been removed from the " + r.getName() + " role. ").build()).queue());
+                        .setColor(Constants.Colors.ERROR)
+                        .setDescription("You have been removed from the " + r.getName() + " role").build()).queue());
             } else {
                 event.getGuild().addRoleToMember(event.getMember(), r).queue();
 
                 event.getUser().openPrivateChannel().queue(c -> c.sendMessageEmbeds(new EmbedBuilder()
                         .setTitle("Role Added")
-                        .setColor(Color.GREEN)
-                        .setDescription("You have been added to the " + r.getName() + " role. ").build()).queue());
+                        .setColor(Constants.Colors.SUCCESS)
+                        .setDescription("You have been added to the " + r.getName() + " role").build()).queue());
             }
         }
     }
 
-    static void setup(Message msg) {
-        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+    private static final HashMap<Utils.Mode, Long> lastPinged = new HashMap<>();
 
-        StringBuilder sb = new StringBuilder();
-        for (Utils.Mode value: Utils.Mode.values()) {
-            sb.append(msg.getGuild().getEmotesByName(value.toString(), false).get(0).getAsMention() + " - <@&" + GUILD_INFO.roles.get(value) + ">\n");
+    public static boolean tryPing(Utils.Mode mode) {
+        Long last = lastPinged.get(mode);
+        if (last != null && System.currentTimeMillis() < last + 1000 * 60 * 10) {
+            return false;
         }
 
-        Message m = msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Generals.io Role Selector")
-                .setDescription("To select one or more roles, simply react with the role you would like to add or remove. \n\nEach role has a specific channel dedicated to that game mode. " +
-                        "You can also ping all players with the role using **!ping** in that game mode's channel.\n\nWant the <@&788259902254088192> role? DM or ping <@356517795791503393>. The tester role is pinged when <@356517795791503393> is testing a beta version on the BOT server.\n\n" +
-                        sb.toString()
-                ).setFooter("You must wait 3 seconds between adding a role and removing it.")
-                .setThumbnail(msg.getGuild().getIconUrl()).build()).complete();
+        lastPinged.put(mode, System.currentTimeMillis());
 
-        for (Utils.Mode value: Utils.Mode.values()) {
-            m.addReaction(msg.getGuild().getEmotesByName(value.toString(), false).get(0)).queue();
-        }
-    }
-
-    private static final HashMap<Long, Long> lastPinged = new HashMap<>();
-
-    static void ping(Message msg) {
-        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
-
-        Utils.Mode mode = GUILD_INFO.channelToMode(msg.getChannel().getIdLong());
-        if (mode == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**!ping** can only be used in a game mode channel")).queue();
-            return;
-        }
-
-        Role role = msg.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
-
-        Long last = lastPinged.get(role.getIdLong());
-        if (last != null && last > System.currentTimeMillis()) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Each role can only be pinged once every 10 minutes")).queue();
-            return;
-        }
-        msg.getChannel().sendMessage(role.getAsMention() + " (Pinged By " + Objects.requireNonNull(msg.getMember()).getAsMention() + ")").queue();
-        lastPinged.put(role.getIdLong(), System.currentTimeMillis() + 1000 * 60 * 10);
+        return true;
     }
 }

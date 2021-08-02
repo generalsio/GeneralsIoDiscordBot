@@ -104,6 +104,8 @@ public class Constants {
 
     public static class Colors {
         public static Color PRIMARY = new Color(0, 128, 128);
+        public static Color ERROR = new Color(240, 71, 71);
+        public static Color SUCCESS = new Color(67, 181, 129);
     }
 
     public static enum Server {
