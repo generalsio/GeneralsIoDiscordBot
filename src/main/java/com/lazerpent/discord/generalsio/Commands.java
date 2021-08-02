@@ -332,13 +332,15 @@ public class Commands extends ListenerAdapter {
 
         @Command(name={"addname"}, args={"username"}, cat="user", desc="Register generals.io username")
         public static void handle_addname(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+
             if (cmd.length < 2) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Missing username")).queue();
                 return;
             }
             String username;
             if ((username = Database.getGeneralsName(Objects.requireNonNull(msg.getMember()).getIdLong())) != null) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You're already registered as \\`" + username + "'. Ask a <@&309536399005188097> to change your username.")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You're already registered as **" + username + "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> to change your username.")).queue();
                 return;
             }
     
@@ -348,19 +350,19 @@ public class Commands extends ListenerAdapter {
             long l;
             if ((l = Database.getDiscordId(username)) != -1) {
                 if (msg.getGuild().retrieveBanById(l).complete() != null) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + username + "' is banned")).queue();
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**" + username + "** is banned")).queue();
                     return;
                 }
                 Member m = msg.getGuild().getMemberById(l);
                 if (m != null) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + username + "' is already registered to " + m.getAsMention())).queue();
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**" + username + "** is already registered to " + m.getAsMention())).queue();
                     return;
                 }
             }
     
             Database.addDiscordGenerals(Objects.requireNonNull(msg.getMember()).getIdLong(), username);
             msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Username Added").setColor(Constants.Colors.SUCCESS)
-                .setDescription(msg.getMember().getAsMention() + " is now generals.io user \\`" + username + "'").build()).queue();
+                .setDescription(msg.getMember().getAsMention() + " is now generals.io user **" + username + "**").build()).queue();
         }
     
         @Command(name={"setname"}, cat="user", args={"@mention", "username"}, desc="Change generals.io username of user", perms=Utils.Perms.MOD)
@@ -391,7 +393,7 @@ public class Commands extends ListenerAdapter {
                 .setContent(msg.getMember().getAsMention())                
                 .setEmbeds(
                     new EmbedBuilder().setTitle("Username Updated").setColor(Constants.Colors.SUCCESS)
-                    .setDescription(msg.getMember().getAsMention() + " is now generals.io user \\`" + name + "'").build()).build()).queue();
+                    .setDescription(msg.getMember().getAsMention() + " is now generals.io user **" + name + "**").build()).build()).queue();
         }
 
     }

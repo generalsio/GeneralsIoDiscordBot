@@ -15,6 +15,7 @@ public class Constants {
         public Map<Utils.Mode, Long> channels;
         public Set<Long> ignoreChannels;
         public long rolesMessage;
+        public long moderatorRole;
 
         public GuildInfo() {
             this.built = false;
@@ -53,6 +54,11 @@ public class Constants {
             return this;
         }
 
+        public GuildInfo setModeratorRole(long id) {
+            this.moderatorRole = id;
+            return this;
+        }
+
         public GuildInfo build() {
             if (this.built) throw new IllegalStateException("double-build after use");
             this.built = true;
@@ -81,6 +87,7 @@ public class Constants {
             ))
             .setIgnoreChannels(871581355711012875L)
             .setRolesMessage(871842464917491803L)
+            .setModeratorRole(871581355031560289L)
             .build(),
 
         // real server
@@ -99,6 +106,7 @@ public class Constants {
             ))
             .setIgnoreChannels(774660554362716181L)
             .setRolesMessage(795825358905409606L)
+            .setModeratorRole(309536399005188097L)
             .build()
     );
 
