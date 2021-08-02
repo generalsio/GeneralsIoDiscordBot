@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.net.URLEncoder;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -32,6 +33,8 @@ import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameE
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.interactions.components.Button;
 
 public class Commands extends ListenerAdapter {
     private final static String STRING_NULL = null;
@@ -169,27 +172,44 @@ public class Commands extends ListenerAdapter {
 
     @Category(cat="game", name="Game")
     public static class Game {
-        private static MessageEmbed createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server, @Nullable String link) {
-            if (link == null) {
-                link = Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
+        private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server, String[] cmd) {
+            String link = cmd.length > 1 ? cmd[1] :  Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
+            String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
+            if (map != null && (map.equals("-") || map.equals("."))) map = null;
+
+            String url = "https://" + server.host() + "/games/" + link;
+            try {
+                if (map != null) url += "?map=" + URLEncoder.encode(map, "UTF-8").replaceAll("\\+", "%20");
+            } catch(Exception err) {
+                err.printStackTrace();
             }
 
-            return new EmbedBuilder()
-                .setTitle("Custom Match (" + server.toString().toLowerCase() + ")", "https://" + server.host() + "/games/" + link).setColor(new Color(50, 50, 150))
-                .setDescription("http://" + server.host() + "/games/" + link + "\n\n" +
-                    "Requested by __" + Database.getGeneralsName(msg.getAuthor().getIdLong()) + "__ (" + msg.getAuthor().getAsMention() + ")").build();
+            return new MessageBuilder()
+                .setActionRows(ActionRow.of(
+                    Button.link(url, "Play"),
+                    Button.link(url + "?spectate=true", "Spectate")
+                ))
+                .setEmbeds(
+                    new EmbedBuilder()
+                        .setTitle("Custom Match", url).setColor(new Color(50, 50, 150))
+                        .setDescription("Link: " + url + (map == null ? "" : "\nMap: " + map))
+                        .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
+                        msg.getAuthor().getAvatarUrl()).build()
+                )
+                .build();
         }
 
-        @Command(name={"na", "custom", "private"}, args={"code?"}, desc="Generate custom match.", perms=Utils.Perms.USER)
+        @Command(name={"custom", "private"}, args={"map?", "code?"}, desc="Generate custom match", perms=Utils.Perms.USER)
         public static void handle_custom(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-            String link = Arrays.stream(cmd).skip(1).findFirst().orElse(null);
-            msg.getChannel().sendMessageEmbeds(createLinkEmbed(msg, Constants.Server.NA, link)).queue();
+            String map = Arrays.stream(cmd).skip(1).findFirst().orElse(null);
+            String link = Arrays.stream(cmd).skip(2).findFirst().orElse(null);
+            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, cmd)).queue();
         }
     
-        @Command(name={"bot", "botcustom"}, args={"code?"}, desc="Generate custom match on bot server", perms=Utils.Perms.USER)
+        @Command(name={"bot", "botcustom", "botprivate"}, args={"code?"}, desc="Generate custom match on bot server", perms=Utils.Perms.USER)
         public static void handle_botcustom(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             String link = Arrays.stream(cmd).skip(1).findFirst().orElse(null);
-            msg.getChannel().sendMessageEmbeds(createLinkEmbed(msg, Constants.Server.BOT, link)).queue();
+            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.BOT, cmd)).queue();
         }
             
         @Command(name={"ping"}, desc="Ping role", perms=Utils.Perms.USER)    
