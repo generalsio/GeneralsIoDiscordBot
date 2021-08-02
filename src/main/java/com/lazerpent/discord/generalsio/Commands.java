@@ -193,20 +193,26 @@ public class Commands extends ListenerAdapter {
 
             EmbedBuilder embed = 
             new EmbedBuilder()
-                .setTitle("Custom Match: " + link, url).setColor(Constants.Colors.PRIMARY)
+                .setTitle("Custom Match", url).setColor(Constants.Colors.PRIMARY)
                 .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
                     msg.getAuthor().getAvatarUrl());
-            embed = embed.setDescription(url);
+            embed = embed.setDescription(url + "\n");
             if (speed != 1)
-                embed = embed.addField("Speed", Integer.toString(speed), true);
+                embed = embed.appendDescription("\n**Speed:** " + Integer.toString(speed));
             if (map != null)
-                embed = embed.addField("Map", map, true);
+                embed = embed.appendDescription("\n**Map:** " + map);
+
+            List<Button> buttons = new ArrayList<>(List.of(
+                Button.link(url, "Play"),
+                Button.link(url + "&spectate=true", "Spectate")
+            ));
+
+            if (map != null) {
+                buttons.add(Button.link("https://" + server.host() + "/maps/" + Utils.encodeURI(map), "Map"));
+            }
 
             return new MessageBuilder()
-                .setActionRows(ActionRow.of(
-                    Button.link(url, "Play"),
-                    Button.link(url + "&spectate=true", "Spectate")
-                ))
+                .setActionRows(ActionRow.of(buttons))
                 .setEmbeds(
                     embed.build()
                 )
@@ -233,7 +239,7 @@ public class Commands extends ListenerAdapter {
             
         @Command(name={"plots"}, args={"code?"}, desc="Create a 4x Plots Lazerpent game", perms=Utils.Perms.USER)
         public static void handle_plots(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-            String link = cmd.length > 1 ? cmd[1] : "plots";
+            String link = cmd.length > 1 ? cmd[1] : "Plots";
             msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, link, "Plots Lazerpent", 4)).queue();
         }
 
@@ -315,10 +321,13 @@ public class Commands extends ListenerAdapter {
                 }
             }
 
-            msg.getChannel().sendMessageEmbeds(
-                new EmbedBuilder().setTitle("Profile: " + name).setColor(Constants.Colors.PRIMARY)
-                    .addField("Discord", Objects.requireNonNull(msg.getGuild().getMemberById(discordId)).getAsMention(), true)
-                    .addField("Link", "https://generals.io/profiles/" + Utils.encodeURI(name), true).build()).queue();
+            msg.getChannel().sendMessage(
+                new MessageBuilder()
+                    .setEmbeds(new EmbedBuilder().setTitle("Profile: " + name, "https://generals.io/profiles/" + Utils.encodeURI(name)).setColor(Constants.Colors.PRIMARY)
+                        .appendDescription("**Discord:** " + Objects.requireNonNull(msg.getGuild().getMemberById(discordId)).getAsMention())
+                        .appendDescription("\n**Link:** " + "https://generals.io/profiles/" + Utils.encodeURI(name)).build())
+                    .setActionRows(ActionRow.of(Button.link("https://generals.io/profiles/" + Utils.encodeURI(name), "Visit")))
+                    .build()).queue();
         }
 
         @Command(name={"addname"}, args={"username"}, cat="user", desc="Register generals.io username")
@@ -387,7 +396,7 @@ public class Commands extends ListenerAdapter {
 
     }
 
-    @Command(name={"nickwupey"}, cat="users", desc="Bully Wuped", perms=Utils.Perms.MOD)    
+    @Command(name={"nickwupey"}, cat="user", desc="Bully Wuped", perms=Utils.Perms.MOD)    
     public static void handle_nickwupey(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         if (msg.getAuthor().getIdLong() == 356517795791503393L) {
             nickWupey = !nickWupey;
