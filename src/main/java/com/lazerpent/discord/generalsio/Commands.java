@@ -219,8 +219,8 @@ public class Commands extends ListenerAdapter {
                 .build();
         }
 
-        @Command(name={"na", "custom", "private"}, args={"code?", "map?"}, desc="Generate match", perms=Utils.Perms.USER)
-        public static void handle_custom(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+        @Command(name={"na", "custom", "private"}, args={"code?", "map?"}, desc="Generate match on NA servers", perms=Utils.Perms.USER)
+        public static void handle_na(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             String link = cmd.length > 1 ? cmd[1] :  Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
             String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
             if (map != null && (map.equals("-") || map.equals("."))) map = null;
@@ -228,9 +228,17 @@ public class Commands extends ListenerAdapter {
             msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, link, map, 1)).queue();
         }
 
+        @Command(name={"eu", "eucustom", "euprivate"}, args={"code?", "map?"}, desc="Generate match on EU servers", perms=Utils.Perms.USER)
+        public static void handle_eu(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+            String link = cmd.length > 1 ? cmd[1] :  Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
+            String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
+            if (map != null && (map.equals("-") || map.equals("."))) map = null;
+
+            msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.EU, link, map, 1)).queue();
+        }
         
-        @Command(name={"bot", "botcustom", "botprivate"}, args={"code?", "map?"}, desc="Generate custom match on bot", perms=Utils.Perms.USER)
-        public static void handle_botcustom(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+        @Command(name={"bot", "botcustom", "botprivate"}, args={"code?", "map?"}, desc="Generate match on Bot servers", perms=Utils.Perms.USER)
+        public static void handle_bot(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             String link = cmd.length > 1 ? cmd[1] :  Long.toString((long)(Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
             String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
             if (map != null && (map.equals("-") || map.equals("."))) map = null;
@@ -411,20 +419,16 @@ public class Commands extends ListenerAdapter {
 
     @Override
     public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
-        //Cancel if user is a bot
-        if (event.getAuthor().isBot()) {
+        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
+
+        // Cancel if user is a bot or in an ignored channel
+        if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
             return;
         }
 
-        if (event.getChannel().getIdLong() == 774660554362716181L) {
-            return; // #music
-        }
-
         Message msg = event.getMessage();
-
-        //If its not from a guild, send it to private message handler
+        // ignore DMs
         if (!msg.isFromGuild()) {
-//            feedBack.privateMessage(msg);
             return;
         }
 
@@ -432,10 +436,11 @@ public class Commands extends ListenerAdapter {
         if (!content.startsWith(PREFIX)) {
             return;
         }
-        //Split the content into words, and remove the prefix
+
+        // split content into words; remove prefix
         content = content.replaceFirst(PREFIX, "");
         String[] command = content.split(" ");
-        Method cmdMethod = commands.get(command[0]);
+        Method cmdMethod = commands.get(command[0].toLowerCase());
         if (cmdMethod == null) {
             return;
         }
@@ -487,7 +492,7 @@ public class Commands extends ListenerAdapter {
         Objects.requireNonNull(event.getGuild().getTextChannelById(252599855841542145L)).sendMessage(new EmbedBuilder()
                 .setTitle("Goodbye " + event.getUser().getName() + "#" + event.getUser().getDiscriminator())
                 .setThumbnail(event.getUser().getEffectiveAvatarUrl())
-                .setColor(new Color(75, 200, 100))
+                .setColor(Constants.Colors.ERROR)
                 .setDescription("We will miss you.")
                 .build()).queue();
     }
@@ -499,7 +504,7 @@ public class Commands extends ListenerAdapter {
                 .sendMessage(new MessageBuilder().append(event.getMember()).setEmbed(new EmbedBuilder()
                         .setTitle("Welcome " + event.getMember().getEffectiveName())
                         .setThumbnail(event.getMember().getUser().getEffectiveAvatarUrl())
-                        .setColor(new Color(75, 200, 100))
+                        .setColor(Constants.Colors.SUCCESS)
                         .setDescription("Make sure you add your generals.io name to our bot, using ``!addname generals.io_username``.\nExample: ```!addname MyName321```\n" +
                                         "Head over to <#754022719879643258> to register your name.")
                         .addField("Roles", "Want a role specific to the game modes you play? After registering your name, head over to <#787821221164351568> to get some roles.", false)
