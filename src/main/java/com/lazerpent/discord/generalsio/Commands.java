@@ -274,36 +274,40 @@ public class Commands extends ListenerAdapter {
     @Category(cat = "game", name = "Game")
     public static class Game {
         private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server, @NotNull String link, @Nullable String map, int speed) {
-            String url = "https://" + server.host() + "/games/" + Utils.encodeURI(link) + (speed != 1 ? "?speed=" + speed : "");
+            String baseURL = "https://" + server.host() + "/games/" + Utils.encodeURI(link);
+
+            List<String> query = new ArrayList<>();
             if (link.equals("main") || link.equals("1v1")) {
-                map = null;
-                url = "https://" + server.host() + "/?queue=" + Utils.encodeURI(link);
+                map = null; speed = 1;
+                baseURL = "https://" + server.host() + "/?queue=" + Utils.encodeURI(link);
             } else if (link.equals("2v2")) {
-                map = null;
-                url = "https://" + server.host() + "/teams/matchmaking";
+                map = null; speed = 1;
+                baseURL = "https://" + server.host() + "/teams/matchmaking";
             } else {
+                if (speed != 1) {
+                    query.add("speed=" + speed);
+                }
                 if (map != null) {
-                    try {
-                        url += "&map=" + Utils.encodeURI(map);
-                    } catch (Exception ignored) {
-                    } // silently drop map
+                    query.add("map=" + Utils.encodeURI(map));
                 }
             }
 
+            String playURL = query.size() == 0 ? baseURL : baseURL + "?" + String.join("&", query);
+            query.add("spectate=true");
+            String spectateURL = baseURL + "?" + String.join("&", query);
+
             EmbedBuilder embed =
-                    new EmbedBuilder()
-                            .setTitle("Custom Match", url).setColor(Constants.Colors.PRIMARY)
-                            .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
-                                    msg.getAuthor().getAvatarUrl());
-            embed.setDescription(url + "\n");
-            if (speed != 1)
-                embed = embed.appendDescription("\n**Speed:** " + speed);
-            if (map != null)
-                embed = embed.appendDescription("\n**Map:** " + map);
+                new EmbedBuilder()
+                        .setTitle("Custom Match", playURL).setColor(Constants.Colors.PRIMARY)
+                        .setDescription(playURL + "\n")
+                        .appendDescription(speed != 1 ? "\n**Speed:** " + speed : "")
+                        .appendDescription(map != null ? "\n**Map:** " + map : "")
+                        .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
+                                msg.getAuthor().getAvatarUrl());
 
             List<Button> buttons = new ArrayList<>(List.of(
-                    Button.link(url, "Play"),
-                    Button.link(url + "&spectate=true", "Spectate")
+                Button.link(playURL, "Play"),
+                Button.link(spectateURL, "Spectate")
             ));
 
             if (map != null) {
