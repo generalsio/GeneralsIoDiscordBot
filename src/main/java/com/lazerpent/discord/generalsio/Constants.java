@@ -1,18 +1,103 @@
 package com.lazerpent.discord.generalsio;
 
-import java.awt.Color;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Member;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
+import java.awt.*;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
 
-/** Class storing constants */
+/**
+ * Class storing constants
+ */
 public class Constants {
+    public final static Map<Long, GuildInfo> GUILD_INFO = Map.of(
+            // GITS
+            871581354800861195L, new GuildInfo()
+                    .setRoles(Map.of(
+                            Mode.FFA, 871581355002175559L,
+                            Mode.M1v1, 871581354800861203L,
+                            Mode.M2v2, 871581354800861202L,
+                            Mode.Custom, 871581354800861201L
+                    ))
+                    .setChannels(Map.of(
+                            Mode.FFA, 871581355262226459L,
+                            Mode.M1v1, 871581355262226460L,
+                            Mode.M2v2, 871581355262226461L,
+                            Mode.Custom, 871581355526459503L
+                    ))
+                    .setIgnoreChannels(871581355711012875L)
+                    .setRolesMessage(871842464917491803L)
+                    .setModeratorRole(871581355031560289L)
+                    .build(),
+
+            // real server
+            252596486628573185L, new GuildInfo()
+                    .setRoles(Map.of(
+                            Mode.FFA, 761593333100838952L,
+                            Mode.M1v1, 787825376969097226L,
+                            Mode.M2v2, 761593217304363038L,
+                            Mode.Custom, 761593016020369459L
+                    ))
+                    .setChannels(Map.of(
+                            Mode.FFA, 442420790873423873L,
+                            Mode.M1v1, 793855287110402078L,
+                            Mode.M2v2, 456322523458437122L,
+                            Mode.Custom, 787818938628571216L
+                    ))
+                    .setIgnoreChannels(774660554362716181L)
+                    .setRolesMessage(795825358905409606L)
+                    .setModeratorRole(309536399005188097L)
+                    .build()
+    );
+
+    public enum Server {
+        NA, EU, BOT;
+
+        public String host() {
+            return switch (this) {
+                case NA -> "generals.io";
+                case EU -> "eu.generals.io";
+                case BOT -> "bot.generals.io";
+            };
+        }
+    }
+
+    public static class Colors {
+        public static Color PRIMARY = new Color(0, 128, 128);
+        public static Color ERROR = new Color(240, 71, 71);
+        public static Color SUCCESS = new Color(67, 181, 129);
+    }
+
+    public enum Mode {
+        FFA, M1v1, M2v2, Custom;
+
+        public static Mode fromString(String s) {
+            return switch (s) {
+                case "ffa" -> Mode.FFA;
+                case "1v1" -> Mode.M1v1;
+                case "2v2" -> Mode.M2v2;
+                case "custom" -> Mode.Custom;
+                default -> null;
+            };
+        }
+
+        public String toString() {
+            return switch (this) {
+                case FFA -> "ffa";
+                case M1v1 -> "1v1";
+                case M2v2 -> "2v2";
+                case Custom -> "custom";
+            };
+        }
+    }
+
     public static class GuildInfo {
         private boolean built;
-        public Map<Utils.Mode, Long> roles;
-        public Map<Utils.Mode, Long> channels;
+        public Map<Mode, Long> roles;
+        public Map<Mode, Long> channels;
         public Set<Long> ignoreChannels;
         public long rolesMessage;
         public long moderatorRole;
@@ -21,23 +106,24 @@ public class Constants {
             this.built = false;
         }
 
-        public Utils.Mode channelToMode(long channelID) {
-            for (Map.Entry<Utils.Mode, Long> e : this.channels.entrySet()) {
-                if (Long.valueOf(e.getValue()) == channelID) {
+        public Mode channelToMode(long channelID) {
+            for (Map.Entry<Mode, Long> e : this.channels.entrySet()) {
+                if (e.getValue() == channelID) {
                     return e.getKey();
-                }    
+                }
             }
 
             return null;
         }
 
-        public GuildInfo setRoles(Map<Utils.Mode, Long> Modes) {
-            if (this.built) throw new IllegalStateException("object already built, why are you using it after .build()");
+        public GuildInfo setRoles(Map<Mode, Long> Modes) {
+            if (this.built)
+                throw new IllegalStateException("object already built, why are you using it after .build()");
             this.roles = Modes;
             return this;
         }
 
-        public GuildInfo setChannels(Map<Utils.Mode, Long> channels) {
+        public GuildInfo setChannels(Map<Mode, Long> channels) {
             if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.channels = channels;
             return this;
@@ -63,69 +149,32 @@ public class Constants {
             if (this.built) throw new IllegalStateException("double-build after use");
             this.built = true;
 
-            if (this.channels == null || this.ignoreChannels== null || this.roles == null)
+            if (this.channels == null || this.ignoreChannels == null || this.roles == null)
                 throw new IllegalStateException("initialization of GuildInfo wrong");
 
             return this;
         }
     }
 
-    public final static Map<Long, GuildInfo> GUILD_INFO = Map.of(
-        // GITS
-        871581354800861195L, new GuildInfo()
-            .setRoles(Map.of(
-                Utils.Mode.FFA,    871581355002175559L,
-                Utils.Mode.M1v1,   871581354800861203L,
-                Utils.Mode.M2v2,   871581354800861202L,
-                Utils.Mode.Custom, 871581354800861201L
-            ))
-            .setChannels(Map.of(
-                Utils.Mode.FFA,    871581355262226459L,
-                Utils.Mode.M1v1,   871581355262226460L,
-                Utils.Mode.M2v2,   871581355262226461L,
-                Utils.Mode.Custom, 871581355526459503L
-            ))
-            .setIgnoreChannels(871581355711012875L)
-            .setRolesMessage(871842464917491803L)
-            .setModeratorRole(871581355031560289L)
-            .build(),
+    public static class Perms {
+        public final static int NONE = 0;
+        public final static int USER = 1;
+        public final static int MOD = 2;
 
-        // real server
-        252596486628573185L, new GuildInfo()
-            .setRoles(Map.of(
-                Utils.Mode.FFA,    761593333100838952L,
-                Utils.Mode.M1v1,   787825376969097226L,
-                Utils.Mode.M2v2,   761593217304363038L,
-                Utils.Mode.Custom, 761593016020369459L
-            ))
-            .setChannels(Map.of(
-                Utils.Mode.FFA,    442420790873423873L,
-                Utils.Mode.M1v1,   793855287110402078L,
-                Utils.Mode.M2v2,   456322523458437122L,
-                Utils.Mode.Custom, 787818938628571216L
-            ))
-            .setIgnoreChannels(774660554362716181L)
-            .setRolesMessage(795825358905409606L)
-            .setModeratorRole(309536399005188097L)
-            .build()
-    );
+        private Perms() {
+        }
 
-    public static class Colors {
-        public static Color PRIMARY = new Color(0, 128, 128);
-        public static Color ERROR = new Color(240, 71, 71);
-        public static Color SUCCESS = new Color(67, 181, 129);
-    }
-
-    public static enum Server {
-        NA, EU, BOT;
-
-        public String host() {
-            switch (this) {
-            case NA: return "generals.io";
-            case EU: return "eu.generals.io";
-            case BOT: return "bot.generals.io";
+        /**
+         * @return whether said user has a given permission.
+         */
+        public static int get(@NotNull Member mbr) {
+            if (mbr.hasPermission(Permission.MESSAGE_MANAGE) || mbr.getIdLong() == 356517795791503393L) {
+                return Perms.MOD;
+            } else if (Database.getGeneralsName(mbr.getIdLong()) != null) {
+                return Perms.USER;
+            } else {
+                return Perms.NONE;
             }
-            return "";
         }
     }
 }

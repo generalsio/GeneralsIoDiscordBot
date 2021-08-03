@@ -3,10 +3,8 @@ package com.lazerpent.discord.generalsio;
 import java.sql.*;
 
 public class Database {
-    private static final String DATABASE_TABLE = "discord_to_generals";
-
     public static final Connection connection;
-
+    private static final String DATABASE_TABLE = "discord_to_generals";
 
     static {
         Connection con;
@@ -18,10 +16,6 @@ public class Database {
             System.exit(1);
         }
         connection = con;
-    }
-
-    public static Connection getConnection() {
-        return connection;
     }
 
     public static void addDiscordGenerals(long discordId, String generalsName) {
