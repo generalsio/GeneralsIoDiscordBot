@@ -274,7 +274,7 @@ public class Commands extends ListenerAdapter {
     @Category(cat = "game", name = "Game")
     public static class Game {
         private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server, @NotNull String link, @Nullable String map, int speed) {
-            String url = "https://" + server.host() + "/games/" + Utils.encodeURI(link) + "?speed=" + speed;
+            String url = "https://" + server.host() + "/games/" + Utils.encodeURI(link) + (speed != 1 ? "?speed=" + speed : "");
             if (link.equals("main") || link.equals("1v1")) {
                 map = null;
                 url = "https://" + server.host() + "/?queue=" + Utils.encodeURI(link);
@@ -282,10 +282,12 @@ public class Commands extends ListenerAdapter {
                 map = null;
                 url = "https://" + server.host() + "/teams/matchmaking";
             } else {
-                try {
-                    url += "&map=" + Utils.encodeURI(map);
-                } catch (Exception ignored) {
-                } // silently drop map
+                if (map != null) {
+                    try {
+                        url += "&map=" + Utils.encodeURI(map);
+                    } catch (Exception ignored) {
+                    } // silently drop map
+                }
             }
 
             EmbedBuilder embed =
