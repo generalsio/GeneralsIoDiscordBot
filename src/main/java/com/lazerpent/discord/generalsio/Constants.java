@@ -65,12 +65,6 @@ public class Constants {
         }
     }
 
-    public static class Colors {
-        public static Color PRIMARY = new Color(0, 128, 128);
-        public static Color ERROR = new Color(240, 71, 71);
-        public static Color SUCCESS = new Color(67, 181, 129);
-    }
-
     public enum Mode {
         FFA, M1v1, M2v2, Custom;
 
@@ -94,13 +88,19 @@ public class Constants {
         }
     }
 
+    public static class Colors {
+        public static Color PRIMARY = new Color(0, 128, 128);
+        public static Color ERROR = new Color(240, 71, 71);
+        public static Color SUCCESS = new Color(67, 181, 129);
+    }
+
     public static class GuildInfo {
-        private boolean built;
         public Map<Mode, Long> roles;
         public Map<Mode, Long> channels;
         public Set<Long> ignoreChannels;
         public long rolesMessage;
         public long moderatorRole;
+        private boolean built;
 
         public GuildInfo() {
             this.built = false;
