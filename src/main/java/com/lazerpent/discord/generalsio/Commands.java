@@ -166,12 +166,10 @@ public class Commands extends ListenerAdapter {
 
     @Command(name = {"nickwupey"}, cat = "user", desc = "Bully Wuped", perms = Constants.Perms.MOD)
     public static void handleNickWupey(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        if (msg.getAuthor().getIdLong() == 356517795791503393L) {
-            nickWupey = !nickWupey;
-            msg.getChannel().sendMessage("Switched auto-nick to " + nickWupey).queue();
-            if (nickWupey) {
-                msg.getGuild().modifyNickname(Objects.requireNonNull(msg.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
-            }
+        nickWupey = !nickWupey;
+        msg.getChannel().sendMessage("Switched auto-nick to " + nickWupey).queue();
+        if (nickWupey) {
+            msg.getGuild().modifyNickname(Objects.requireNonNull(msg.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
         }
     }
 
