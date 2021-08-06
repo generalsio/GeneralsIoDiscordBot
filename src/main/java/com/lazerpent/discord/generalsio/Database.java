@@ -1,9 +1,15 @@
 package com.lazerpent.discord.generalsio;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+import java.util.ArrayList;
+
 import java.sql.*;
 
 public class Database {
-    public static final Connection connection;
+    private static final Connection connection;
     private static final String DATABASE_TABLE = "discord_to_generals";
 
     static {
@@ -90,5 +96,65 @@ public class Database {
             e.printStackTrace();
         }
         return true;
+    }
+
+    public static class Hill {
+        private final static String TABLE = "challenges";
+        private final static String DEL = "\u001F";
+        // CREATE TABLE challenges (timestamp INT NOT NULL PRIMARY KEY, type INT NOT NULL, scoreInc INT NOT NULL, scoreOpp INT NOT NULL, opp TEXT NOT NULL, replays TEXT NOT NULL);
+
+        public static class Challenge {
+            public long timestamp;
+            public int type;
+            public int scoreInc;
+            public int scoreOpp;
+            public String[] opp;
+            public String[] replays;
+        }
+
+        public static long add(Challenge c) {
+            String sql = "INSERT INTO " + TABLE + " (timestamp, type, scoreInc, scoreOpp, opp, replays) VALUES (?, ?, ?, ?, ?, ?)";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                int i = 1;
+                stm.setLong(i++, c.timestamp);
+                stm.setInt(i++, c.type);
+                stm.setInt(i++, c.scoreInc);
+                stm.setInt(i++, c.scoreOpp);
+                stm.setString(i++, String.join(DEL, c.opp));
+                stm.setString(i++, String.join(DEL, c.replays));
+                stm.execute();
+                return c.timestamp;
+            } catch(SQLException e) {
+                e.printStackTrace();
+                return -1;
+            }
+        }
+
+        public static void delete(long timestamp) {
+            String sql = "DELETE FROM " + TABLE + " WHERE timestamp=?";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setLong(1, timestamp);
+                stm.execute();
+            } catch(SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public static Challenge[] lastSwitches(n int) {
+            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp ORDER BY timestamp ASC LIMIT ?";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setInt(1, n);
+                ResultSet result = stm.executeQuery();
+                while (result.next()) {
+                    
+                }
+
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

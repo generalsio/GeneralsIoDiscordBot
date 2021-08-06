@@ -42,10 +42,6 @@ public class Utils {
     }
 
     public static String encodeURI(String data) {
-        try {
-            return URLEncoder.encode(data, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
-        } catch (Exception err) {
-            return data;
-        }
+        return URLEncoder.encode(data, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
     }
 }
