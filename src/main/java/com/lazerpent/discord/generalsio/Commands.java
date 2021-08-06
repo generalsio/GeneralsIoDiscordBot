@@ -483,10 +483,11 @@ public class Commands extends ListenerAdapter {
 
             msg.getChannel().sendMessage(
                     new MessageBuilder()
-                            .setEmbeds(new EmbedBuilder().setTitle("Profile: " + name, "https://generals" +
+                            .setEmbeds(new EmbedBuilder().setTitle("Profile", "https://generals" +
                                                                                        ".io/profiles/" + Utils.encodeURI(name)).setColor(Constants.Colors.PRIMARY)
-                                    .appendDescription("**Discord:** " + Objects.requireNonNull(msg.getGuild().getMemberById(discordId)).getAsMention())
-                                    .appendDescription("\n**Link:** " + "https://generals.io/profiles/" + Utils.encodeURI(name)).build())
+                                .appendDescription("**Username:** " + name)
+                                .appendDescription("\n**Discord:** " + Objects.requireNonNull(msg.getGuild().getMemberById(discordId)).getAsMention())
+                                .build())
                             .setActionRows(ActionRow.of(Button.link("https://generals.io/profiles/" + Utils.encodeURI(name), "Visit")))
                             .build()).queue();
         }
@@ -987,7 +988,8 @@ public class Commands extends ListenerAdapter {
             return new EmbedBuilder()
                 .setTitle("GoTH Results")
                 .setColor(Constants.Colors.PRIMARY)
-                .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") + " vs " + c.opp[0] + " <@" + oppMember + ">").build();
+                .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") + " vs " + c.opp[0] + " <@" + oppMember + ">")
+                .setFooter("Timestamp: " + c.timestamp).build();
         }
 
         @Command(name = {"gothscore"}, desc = "Add GoTH score for challenge", perms = Constants.Perms.MOD)
@@ -1028,7 +1030,7 @@ public class Commands extends ListenerAdapter {
             final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
             String challengerName = Database.getGeneralsName(msg.getAuthor().getIdLong());
-            
+
             List<Role> roles = msg.getMember().getRoles();
             for (Role role : roles) {
                 if (role.getIdLong() == GUILD_INFO.hillRoles.get(Constants.Hill.GoTH)) {
@@ -1184,7 +1186,7 @@ public class Commands extends ListenerAdapter {
             } else if (event.getComponentId().equals("goth-manual")) {
                 final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
 
-                event.reply("Ask a <@&" + GUILD_INFO.moderatorRole + "> to set your GoTH score");
+                event.reply("Ask a <@&" + GUILD_INFO.moderatorRole + "> to set your GoTH score").queue();
                 event.getMessage().editMessage(new MessageBuilder(event.getMessage()).setActionRows().build()).queue();
             }
         }
