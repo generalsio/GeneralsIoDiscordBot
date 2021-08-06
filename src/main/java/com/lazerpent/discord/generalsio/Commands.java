@@ -619,7 +619,7 @@ public class Commands extends ListenerAdapter {
         }
 
         @Command(name = {"addtograph"}, cat = "stat", args = {
-                "username"}, desc = "Find a player's stats and store them for graphing.")
+                "username"}, desc = "Find a player's stats and store them for graphing.", perms=Constants.Perms.USER)
         public static void handleAddToGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
             String username = checkIfGraphRunnable(msg, args);
             if (username == null) return;
@@ -659,7 +659,7 @@ public class Commands extends ListenerAdapter {
         }
 
         @Command(name = {"removefromgraph"}, cat = "stat", args = {
-                "username"}, desc = "Remove a player's stats from the graph.")
+                "username"}, desc = "Remove a player's stats from the graph.", perms=Constants.Perms.USER)
         public static void handleRemoveFromGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
             String username = checkIfGraphRunnable(msg, args);
             if (username == null) return;
@@ -676,7 +676,7 @@ public class Commands extends ListenerAdapter {
             REQUESTED_PLAYERS.decrementAndGet();
         }
 
-        @Command(name = {"cleargraph"}, cat = "stat", desc = "Remove all players' stats from the graph.")
+        @Command(name = {"cleargraph"}, cat = "stat", desc = "Remove all players' stats from the graph.", perms=Constants.Perms.USER)
         public static void handleClearGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
             if (args.length > 1) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "This command has no arguments.")).queue();
@@ -1118,7 +1118,7 @@ public class Commands extends ListenerAdapter {
                 });
         }
 
-        @Command(name = {"goth"}, desc = "List out GoTH challenges in current term", perms = Constants.Perms.USER)
+        @Command(name = {"goth"}, args={"id?"}, desc = "Show information about the given term or challenge", perms = Constants.Perms.USER)
         public static void handleGoth(@NotNull Commands self, @NotNull Message msg, String[] args) {
             final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
