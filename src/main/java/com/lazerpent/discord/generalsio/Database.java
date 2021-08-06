@@ -196,14 +196,14 @@ public class Database {
 
 
         public static int nthTerm(Constants.Hill type, long timestamp) {
-            String sql = "SELECT COUNT(timestamp) FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? AND timestamp < ?";
+            String sql = "SELECT COUNT(timestamp) FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? AND timestamp <= ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setInt(1, type.id);
                 stm.setLong(2, timestamp);
                 ResultSet result = stm.executeQuery();
                 result.next();
-                return result.getInt(1) + 1;
+                return result.getInt(1);
             } catch (SQLException e) {
                 e.printStackTrace();
             }

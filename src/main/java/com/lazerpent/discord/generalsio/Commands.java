@@ -968,12 +968,14 @@ public class Commands extends ListenerAdapter {
         private static Map<Long, ChallengeData> challengeData = new HashMap<>();
 
         private static MessageEmbed scoreEmbed(Database.Hill.Challenge c) {
+            int term = Database.Hill.nthTerm(Constants.Hill.GoTH, c.timestamp);
+
             long oppMember = Database.getDiscordId(c.opp[0]);
             EmbedBuilder embed =  new EmbedBuilder()
                 .setTitle("GoTH Results")
                 .setColor(Constants.Colors.PRIMARY)
                 .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") + " vs " + c.opp[0] + " <@" + oppMember + ">")
-                .setFooter("ID: C" + c.timestamp);
+                .setFooter("ID: C" + c.timestamp + " • T" + term);
 
             if (c.replays.length != 0) {
                 StringBuilder sb = new StringBuilder();
