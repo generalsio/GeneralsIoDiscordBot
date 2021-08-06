@@ -159,7 +159,7 @@ public class Commands extends ListenerAdapter {
                 .setTitle("Bot Information")
                 .setColor(Constants.Colors.PRIMARY)
                 .setDescription("Authors: **Lazerpent**, **person2597**, **pasghetti**")
-                .appendDescription("\n\nSource code: github.com/Lazerpent/GeneralsIoDiscordBot/")
+                .appendDescription("\n\nhttps://github.com/Lazerpent/GeneralsIoDiscordBot")
                 .setFooter("Written using JDA (Java Discord API)")
                 .setThumbnail(msg.getJDA().getSelfUser().getEffectiveAvatarUrl()).build()).queue();
     }
