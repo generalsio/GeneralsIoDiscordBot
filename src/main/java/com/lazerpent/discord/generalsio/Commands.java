@@ -967,12 +967,32 @@ public class Commands extends ListenerAdapter {
         }
         private static Map<Long, ChallengeData> challengeData = new HashMap<>();
 
+        private static MessageEmbed scoreEmbed(Database.Hill.Challenge c) {
+            long oppMember = Database.getDiscordId(c.opp[0]);
+            EmbedBuilder embed =  new EmbedBuilder()
+                .setTitle("GoTH Results")
+                .setColor(Constants.Colors.PRIMARY)
+                .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") + " vs " + c.opp[0] + " <@" + oppMember + ">")
+                .setFooter("ID: C" + c.timestamp);
+
+            if (c.replays.length != 0) {
+                StringBuilder sb = new StringBuilder();
+                for (String replay : c.replays) {
+                    sb.append("https://generals.io/replays/" + replay + "\n");
+                }
+
+                embed.addField("Replays", sb.toString(), false);
+            }
+
+            return embed.build();
+        }
+
         // Logs the results of a new GoTH challenge. Updates the database, updates the guild roles, and returns a MessageEmbed.
         private static MessageEmbed logScore(Guild guild, Database.Hill.Challenge c) {
             final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(guild.getIdLong());
 
             if (c.scoreInc < c.scoreOpp) {
-                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(1);
+                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(Constants.Hill.GoTH, 1);
                 // remove GoTH role from incumbent
                 if (terms.length != 0) {
                     guild.removeRoleFromMember(Database.getDiscordId(terms[0].opp[0]), guild.getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.GoTH))).queue();
@@ -984,15 +1004,32 @@ public class Commands extends ListenerAdapter {
 
             Database.Hill.add(c);
 
-            long oppMember = Database.getDiscordId(c.opp[0]);
-            return new EmbedBuilder()
-                .setTitle("GoTH Results")
-                .setColor(Constants.Colors.PRIMARY)
-                .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") + " vs " + c.opp[0] + " <@" + oppMember + ">")
-                .setFooter("Timestamp: " + c.timestamp).build();
+            return scoreEmbed(c);
         }
 
-        @Command(name = {"gothscore"}, desc = "Add GoTH score for challenge", perms = Constants.Perms.MOD)
+        @Command(name = {"gothdel", "gothdelete"}, args={"id"}, desc = "Delete completed GoTH challenge", perms = Constants.Perms.MOD)
+        public static void handleGothDel(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            if (args.length <= 1) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must return length")).queue();
+                return;
+            }
+
+            if (args[1].charAt(0) != 'C') {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must delete challenges")).queue();
+                return;
+            }
+
+            try {
+                long timestamp = Long.parseLong(args[1].substring(1));
+                Database.Hill.delete(timestamp);
+                msg.getChannel().sendMessageEmbeds(Utils.success(msg, "Challenge Deleted", "If `C" + timestamp + "` existed, it was deleted")).queue();
+            } catch(NumberFormatException e) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid challenge ID")).queue();
+                return;
+            }
+        }
+
+        @Command(name = {"gothscore"}, args={"score-score", "user"}, desc = "Add GoTH score for challenge", perms = Constants.Perms.MOD)
         public static void handleGothScore(@NotNull Commands self, @NotNull Message msg, String[] args) {
             if (args.length < 3 || msg.getMentionedMembers().size() == 0) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must mention a user and provide a score")).queue();
@@ -1012,7 +1049,7 @@ public class Commands extends ListenerAdapter {
                 return;
             }
             c.timestamp = msg.getTimeCreated().toEpochSecond();
-            c.type = 0;
+            c.type = Constants.Hill.GoTH;
             
             String name = Database.getGeneralsName(mention.getIdLong());
             if (name == null) {
@@ -1088,67 +1125,80 @@ public class Commands extends ListenerAdapter {
                 return;
             }
 
-            int n = 0;
-            if (args.length > 1) {
+            char c = 'T';
+            long n = 0;
+            if (args.length > 1 && args[1].length() != 0) {
+                c = args[1].charAt(0);
                 try {
-                    n = Integer.parseInt(args[1]);
+                    n = Long.parseLong(args[1].substring(1));
                 } catch (NumberFormatException e) {
                     msg.getChannel().sendMessageEmbeds(Utils.error(msg, args[1] + " is not a number")).queue();
                     return;
                 }
             }
 
-            Database.Hill.Challenge term;
-            Database.Hill.Challenge nextTerm = null;
-            int nth = -1;
-            if (n == 0) {
-                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(1);
-                if (terms.length == 0) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No GoTH term found")).queue();
+            if (c == 'T') {
+                Database.Hill.Challenge term;
+                Database.Hill.Challenge nextTerm = null;
+                int nth = -1;
+                if (n == 0) {
+                    Database.Hill.Challenge[] terms = Database.Hill.lastTerms(Constants.Hill.GoTH, 1);
+                    if (terms.length == 0) {
+                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, "GoTH term not found")).queue();
+                        return;
+                    }
+                    term = terms[0];
+                    nth = Database.Hill.nthTerm(Constants.Hill.GoTH, term.timestamp);
+                } else {
+                    Database.Hill.Challenge[] terms = Database.Hill.firstTerms(Constants.Hill.GoTH, (int)n+1);
+                    if (terms.length < (int)n) {
+                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, "GoTH term not found")).queue();
+                        return;
+                    }
+                    term = terms[(int)n-1];
+
+                    if (terms.length > n) {
+                        nextTerm = terms[(int)n];
+                    }
+                    nth = (int)n;
+                }
+                Database.Hill.Challenge[] challenges = Database.Hill.get(Constants.Hill.GoTH, term.timestamp+1, nextTerm == null ? System.currentTimeMillis() : nextTerm.timestamp);
+                StringBuilder sb = new StringBuilder();
+
+                for (Database.Hill.Challenge ch : challenges) {
+                    long oppMember = Database.getDiscordId(ch.opp[0]);
+                    sb.append("`C" + ch.timestamp + "`: " + ch.scoreInc + "-" + ch.scoreOpp + " vs " + ch.opp[0] + " <@" + oppMember + ">\n");
+                }
+                if (challenges.length == 0) {
+                    sb.append("No challenges");
+                }
+
+                String inc = term.opp[0];
+                Member incMember = msg.getGuild().getMemberById(Database.getDiscordId(inc));
+
+                msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
+                    .setColor(Constants.Colors.PRIMARY)
+                    .setTitle("GoTH Term")
+                    .setDescription("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.GoTH) + ">: " + inc + " " + incMember.getUser().getAsMention())
+                    .addField("Challenges (" + challenges.length + ")", sb.toString(), false)
+                    .setFooter("ID: T" + nth)
+                    .build()).queue();
+            } else if (c == 'C') {
+                Database.Hill.Challenge[] challenges = Database.Hill.get(Constants.Hill.GoTH, n, n);
+                if (challenges.length == 0) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "GoTH challenge not found")).queue();
                     return;
                 }
-                term = terms[0];
-                nth = Database.Hill.nthTerm(term.timestamp);
-            } else {
-                Database.Hill.Challenge[] terms = Database.Hill.firstTerms(n+1);
-                if (terms.length < n) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No GoTH term found")).queue();
-                    return;
-                }
-                term = terms[n-1];
 
-                if (terms.length > n) {
-                    nextTerm = terms[n];
-                }
-                nth = n;
+                msg.getChannel().sendMessageEmbeds(scoreEmbed(challenges[0])).queue();
             }
-            Database.Hill.Challenge[] challenges = Database.Hill.get(term.timestamp+1, nextTerm == null ? System.currentTimeMillis() : nextTerm.timestamp);
-            StringBuilder sb = new StringBuilder();
-
-            for (Database.Hill.Challenge c : challenges) {
-                long oppMember = Database.getDiscordId(c.opp[0]);
-                sb.append(c.scoreInc + "-" + c.scoreOpp + " vs " + c.opp[0] + " <@" + oppMember + ">\n");
-            }
-            if (challenges.length == 0) {
-                sb.append("No challenges");
-            }
-
-            String inc = term.opp[0];
-            Member incMember = msg.getGuild().getMemberById(Database.getDiscordId(inc));
-
-            msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
-                .setColor(Constants.Colors.PRIMARY)
-                .setTitle("GoTH Term #" + nth)
-                .setDescription("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.GoTH) + ">: " + inc + " " + incMember.getUser().getAsMention())
-                .addField("Challenges (" + challenges.length + ")", sb.toString(), false)
-                .build()).queue();
         }
 
         public static void handleButtonClick(ButtonClickEvent event) {
             if (event.getComponentId().equals("goth-score")) {
                 ChallengeData cdata = challengeData.get(event.getMessage().getIdLong());
                 String opponent = Database.getGeneralsName(cdata.opp);
-                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(1);
+                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(Constants.Hill.GoTH, 1);
                 if (terms.length == 0) {
                     event.replyEmbeds(Utils.error(event.getMessage(), "No incumbent GoTH"));
                     return;
@@ -1157,7 +1207,7 @@ public class Commands extends ListenerAdapter {
 
                 Database.Hill.Challenge c = new Database.Hill.Challenge();
                 c.timestamp = event.getMessage().getTimeCreated().toEpochSecond();
-                c.type = 0;
+                c.type = Constants.Hill.GoTH;
                 c.opp = new String[]{opponent};
                 c.scoreInc = 0;
                 c.scoreOpp = 0;

@@ -105,7 +105,7 @@ public class Database {
 
         public static class Challenge {
             public long timestamp;
-            public int type;
+            public Constants.Hill type;
             public int scoreInc;
             public int scoreOpp;
             public String[] opp;
@@ -118,7 +118,7 @@ public class Database {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 int i = 1;
                 stm.setLong(i++, c.timestamp);
-                stm.setInt(i++, c.type);
+                stm.setInt(i++, c.type.id);
                 stm.setInt(i++, c.scoreInc);
                 stm.setInt(i++, c.scoreOpp);
                 stm.setString(i++, String.join(DEL, c.opp));
@@ -145,20 +145,24 @@ public class Database {
         private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
             Challenge c = new Challenge();
             c.timestamp = result.getLong("timestamp");
-            c.type = result.getInt("type");
+            c.type = Constants.Hill.fromId(result.getInt("type"));
             c.scoreInc = result.getInt("scoreInc");
             c.scoreOpp = result.getInt("scoreOpp");
             c.opp = result.getString("opp").split(DEL);
             c.replays = result.getString("replays").split(DEL);
+            if (c.replays.length == 1 && c.replays[0].length() == 0) {
+                c.replays = new String[0];
+            }
             return c;
         }
 
         /** Returns the last `n` challenges where the incumbent lost, ordered from latest to earliest. */ 
-        public static Challenge[] lastTerms(int n) {
-            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp ORDER BY timestamp DESC LIMIT ?";
+        public static Challenge[] lastTerms(Constants.Hill type, int n) {
+            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp DESC LIMIT ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setInt(1, n);
+                stm.setInt(1, type.id);
+                stm.setInt(2, n);
                 ResultSet result = stm.executeQuery();
                 List<Challenge> challenges = new ArrayList<>();
                 while (result.next()) {
@@ -172,11 +176,12 @@ public class Database {
         }
 
         /** Returns the first `n` challenges where the incumbent lost, ordered from latest to earliest. */ 
-        public static Challenge[] firstTerms(int n) {
-            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp ORDER BY timestamp ASC LIMIT ?";
+        public static Challenge[] firstTerms(Constants.Hill type, int n) {
+            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp ASC LIMIT ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setInt(1, n);
+                stm.setInt(1, type.id);
+                stm.setInt(2, n);
                 ResultSet result = stm.executeQuery();
                 List<Challenge> challenges = new ArrayList<>();
                 while (result.next()) {
@@ -190,11 +195,12 @@ public class Database {
         }
 
 
-        public static int nthTerm(long timestamp) {
-            String sql = "SELECT COUNT(timestamp) FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND timestamp < ?";
+        public static int nthTerm(Constants.Hill type, long timestamp) {
+            String sql = "SELECT COUNT(timestamp) FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? AND timestamp < ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setLong(1, timestamp);
+                stm.setInt(1, type.id);
+                stm.setLong(2, timestamp);
                 ResultSet result = stm.executeQuery();
                 result.next();
                 return result.getInt(1) + 1;
@@ -205,12 +211,13 @@ public class Database {
         }
 
         /** Returns all challenges from `from` to `to` inclusive, from earliest to latest */
-        public static Challenge[] get(long from, long to) {
-            String sql = "SELECT * FROM " + TABLE + " WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC";
+        public static Challenge[] get(Constants.Hill type, long from, long to) {
+            String sql = "SELECT * FROM " + TABLE + " WHERE timestamp >= ? AND timestamp <= ? AND type = ? ORDER BY timestamp ASC";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setLong(1, from);
                 stm.setLong(2, to);
+                stm.setInt(3, type.id);
                 ResultSet result = stm.executeQuery();
                 List<Challenge> challenges = new ArrayList<>();
                 while (result.next()) {

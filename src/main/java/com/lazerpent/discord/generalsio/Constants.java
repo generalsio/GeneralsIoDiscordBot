@@ -103,14 +103,25 @@ public class Constants {
     }
 
     public static enum Hill {
-        GoTH(1),
-        AoTH(2);
+        GoTH(0, 1),
+        AoTH(1, 2);
 
-        Hill(int teamSize) {
+        Hill(int id, int teamSize) {
+            this.id = id;
             this.teamSize = teamSize;
         }
 
+        public int id;
         public int teamSize;
+
+        public static Hill fromId(int id) {
+            for (Hill mode: Hill.values()) {
+                if (mode.id == id) {
+                    return mode;
+                }
+            }
+            return null;
+        }
     }
 
     public static class GuildInfo {
