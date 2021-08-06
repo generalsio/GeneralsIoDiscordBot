@@ -1,5 +1,6 @@
 package com.lazerpent.discord.generalsio;
 
+import net.dv8tion.jda.api.entities.Guild;
 import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
@@ -20,6 +21,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jfree.chart.JFreeChart;
+import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;;
 
 import javax.annotation.Nonnull;
 import javax.imageio.ImageIO;
@@ -157,6 +159,7 @@ public class Commands extends ListenerAdapter {
                 .setTitle("Bot Information")
                 .setColor(Constants.Colors.PRIMARY)
                 .setDescription("Authors: **Lazerpent**, **person2597**, **pasghetti**")
+                .appendDescription("\n\nSource code: github.com/Lazerpent/GeneralsIoDiscordBot/")
                 .setFooter("Written using JDA (Java Discord API)")
                 .setThumbnail(msg.getJDA().getSelfUser().getEffectiveAvatarUrl()).build()).queue();
     }
@@ -554,10 +557,10 @@ public class Commands extends ListenerAdapter {
                 Database.updateDiscordGenerals(m.getIdLong(), m.getIdLong(), name);
             }
             msg.getChannel().sendMessage(new MessageBuilder()
-                    .setContent(Objects.requireNonNull(msg.getMember()).getAsMention())
+                    .setContent(m.getAsMention())
                     .setEmbeds(
                             new EmbedBuilder().setTitle("Username Updated").setColor(Constants.Colors.SUCCESS)
-                                    .setDescription(msg.getMember().getAsMention() + " is now generals.io user **" + name + "**").build()).build()).queue();
+                                    .setDescription(m.getAsMention() + " is now generals.io user **" + name + "**").build()).build()).queue();
         }
 
     }
@@ -952,6 +955,244 @@ public class Commands extends ListenerAdapter {
                 }
                 REQUEST_LIMITER.release();
             });
+        }
+    }
+
+    @Category(cat = "hill", name = "GoTH/AoTH")
+    public static class Hill {
+        private static class ChallengeData {
+            public long opp;
+            public int length;
+        }
+        private static Map<Long, ChallengeData> challengeData = new HashMap<>();
+
+        // Logs the results of a new GoTH challenge. Updates the database, updates the guild roles, and returns a MessageEmbed.
+        private static MessageEmbed logScore(Guild guild, Database.Hill.Challenge c) {
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(guild.getIdLong());
+
+            if (c.scoreInc < c.scoreOpp) {
+                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(1);
+                // remove GoTH role from incumbent
+                if (terms.length != 0) {
+                    guild.removeRoleFromMember(Database.getDiscordId(terms[0].opp[0]), guild.getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.GoTH))).queue();
+                }
+
+                // add GoTH role to new message
+                guild.addRoleToMember(Database.getDiscordId(c.opp[0]), guild.getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.GoTH))).queue();
+            }
+
+            Database.Hill.add(c);
+
+            long oppMember = Database.getDiscordId(c.opp[0]);
+            return new EmbedBuilder()
+                .setTitle("GoTH Results")
+                .setColor(Constants.Colors.PRIMARY)
+                .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") + " vs " + c.opp[0] + " <@" + oppMember + ">").build();
+        }
+
+        @Command(name = {"gothscore"}, desc = "Add GoTH score for challenge", perms = Constants.Perms.MOD)
+        public static void handleGothScore(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            if (args.length < 3 || msg.getMentionedMembers().size() == 0) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must mention a user and provide a score")).queue();
+                return;                    
+            }
+
+            String score = args[1];
+            Member mention = msg.getMentionedMembers().get(0);
+
+            String[] scores = score.split("-");
+            Database.Hill.Challenge c = new Database.Hill.Challenge();
+            try {
+                c.scoreInc = Integer.parseInt(scores[0]);
+                c.scoreOpp = Integer.parseInt(scores[1]);
+            } catch(NumberFormatException e) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Score format is [goth score]-[opponent score]")).queue();
+                return;
+            }
+            c.timestamp = msg.getTimeCreated().toEpochSecond();
+            c.type = 0;
+            
+            String name = Database.getGeneralsName(mention.getIdLong());
+            if (name == null) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, mention.getAsMention() + " has not registered their " +
+                    "generals.io user")).queue();
+                return;
+            }
+            c.opp = new String[]{name};
+            c.replays = new String[0]; // TODO
+
+            msg.getChannel().sendMessageEmbeds(logScore(msg.getGuild(), c)).queue();
+        }
+
+        private static void handleGothChallenge(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+
+            String challengerName = Database.getGeneralsName(msg.getAuthor().getIdLong());
+            
+            List<Role> roles = msg.getMember().getRoles();
+            for (Role role : roles) {
+                if (role.getIdLong() == GUILD_INFO.hillRoles.get(Constants.Hill.GoTH)) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Nice try", "Can't challenge yourself :D")).queue();
+                    return;
+                }
+            }
+
+            if (args.length != 3) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Wrong number of arguments")).queue();
+                return;
+            }
+
+            String boStr = args[2];
+            int bo_ = 0;
+            try {
+                bo_ = Integer.parseInt(boStr.substring(2));
+            } catch(NumberFormatException e) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, boStr + " is not in the format bo[NUMBER]")).queue();
+                return;
+            }
+            final int bo = bo_;
+
+            if (bo % 2 == 0) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must be best of an odd number")).queue();
+                return;
+            }
+
+            msg.getChannel().sendMessage(new MessageBuilder().append("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.GoTH) + ">")
+                .setEmbeds(new EmbedBuilder()
+                    .setColor(Constants.Colors.PRIMARY)
+                    .setTitle("GoTH Challenge", "https://generals.io/games/goth")
+                    .setDescription("**Challenger:** " + challengerName + " " + msg.getAuthor().getAsMention() + "\n**Best of:** " + bo)
+                    .build())
+                .setActionRows(ActionRow.of(List.of(
+                    Button.link("https://generals.io/games/goth", "Play"),
+                    Button.link("https://generals.io/games/goth?spectate=true", "Spectate"),
+                    Button.success("goth-score", "Score"),
+                    Button.danger("goth-manual", "Manual Score")
+                )))
+                .build()).queue(m -> {
+                    ChallengeData cdata = new ChallengeData();
+                    cdata.opp = msg.getAuthor().getIdLong();
+                    cdata.length = bo;
+                    challengeData.put(m.getIdLong(), cdata);
+                });
+        }
+
+        @Command(name = {"goth"}, desc = "List out GoTH challenges in current term", perms = Constants.Perms.USER)
+        public static void handleGoth(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+
+            if (args.length > 1  && args[1].equals("challenge")) {
+                handleGothChallenge(self, msg, args);
+                return;
+            }
+
+            int n = 0;
+            if (args.length > 1) {
+                try {
+                    n = Integer.parseInt(args[1]);
+                } catch (NumberFormatException e) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, args[1] + " is not a number")).queue();
+                    return;
+                }
+            }
+
+            Database.Hill.Challenge term;
+            Database.Hill.Challenge nextTerm = null;
+            int nth = -1;
+            if (n == 0) {
+                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(1);
+                if (terms.length == 0) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No GoTH term found")).queue();
+                    return;
+                }
+                term = terms[0];
+                nth = Database.Hill.nthTerm(term.timestamp);
+            } else {
+                Database.Hill.Challenge[] terms = Database.Hill.firstTerms(n+1);
+                if (terms.length < n) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No GoTH term found")).queue();
+                    return;
+                }
+                term = terms[n-1];
+
+                if (terms.length > n) {
+                    nextTerm = terms[n];
+                }
+                nth = n;
+            }
+            Database.Hill.Challenge[] challenges = Database.Hill.get(term.timestamp+1, nextTerm == null ? System.currentTimeMillis() : nextTerm.timestamp);
+            StringBuilder sb = new StringBuilder();
+
+            for (Database.Hill.Challenge c : challenges) {
+                long oppMember = Database.getDiscordId(c.opp[0]);
+                sb.append(c.scoreInc + "-" + c.scoreOpp + " vs " + c.opp[0] + " <@" + oppMember + ">\n");
+            }
+            if (challenges.length == 0) {
+                sb.append("No challenges");
+            }
+
+            String inc = term.opp[0];
+            Member incMember = msg.getGuild().getMemberById(Database.getDiscordId(inc));
+
+            msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
+                .setColor(Constants.Colors.PRIMARY)
+                .setTitle("GoTH Term #" + nth)
+                .setDescription("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.GoTH) + ">: " + inc + " " + incMember.getUser().getAsMention())
+                .addField("Challenges (" + challenges.length + ")", sb.toString(), false)
+                .build()).queue();
+        }
+
+        public static void handleButtonClick(ButtonClickEvent event) {
+            if (event.getComponentId().equals("goth-score")) {
+                ChallengeData cdata = challengeData.get(event.getMessage().getIdLong());
+                String opponent = Database.getGeneralsName(cdata.opp);
+                Database.Hill.Challenge[] terms = Database.Hill.lastTerms(1);
+                if (terms.length == 0) {
+                    event.replyEmbeds(Utils.error(event.getMessage(), "No incumbent GoTH"));
+                    return;
+                }
+                String goth = terms[0].opp[0];
+
+                Database.Hill.Challenge c = new Database.Hill.Challenge();
+                c.timestamp = event.getMessage().getTimeCreated().toEpochSecond();
+                c.type = 0;
+                c.opp = new String[]{opponent};
+                c.scoreInc = 0;
+                c.scoreOpp = 0;
+                challengeData.remove(event.getMessage().getIdLong());
+
+                List<String> replayIDs = new ArrayList<>();
+                List<ReplayStatistics.ReplayResult> replays = ReplayStatistics.getLastReplays(goth, 200);
+                for (ReplayStatistics.ReplayResult replay : replays) {
+                    if (replay.ranking.length == 2 && replay.hasPlayer(opponent) && replay.hasPlayer(goth)) {
+                        if (replay.started < event.getMessage().getTimeCreated().toEpochSecond() * 1000) {
+                            break;
+                        }
+
+                        if (replay.ranking[0].name.equals(goth)) {
+                            c.scoreInc += 1;
+                        } else {
+                            c.scoreOpp += 1;
+                        }
+                        replayIDs.add(replay.id);
+                    }
+                }
+                c.replays = replayIDs.toArray(new String[0]);
+
+                event.replyEmbeds(logScore(event.getGuild(), c)).queue();
+                event.getMessage().editMessage(new MessageBuilder(event.getMessage()).setActionRows().build()).queue();
+            } else if (event.getComponentId().equals("goth-manual")) {
+                final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
+
+                event.reply("Ask a <@&" + GUILD_INFO.moderatorRole + "> to set your GoTH score");
+                event.getMessage().editMessage(new MessageBuilder(event.getMessage()).setActionRows().build()).queue();
+            }
+        }
+    }
+
+    public void onButtonClick(ButtonClickEvent event) {
+        if (event.getComponentId().startsWith("goth-")) {
+            Hill.handleButtonClick(event);
         }
     }
 }

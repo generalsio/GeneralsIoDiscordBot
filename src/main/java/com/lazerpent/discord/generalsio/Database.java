@@ -142,19 +142,85 @@ public class Database {
             }
         }
 
-        public static Challenge[] lastSwitches(n int) {
+        private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
+            Challenge c = new Challenge();
+            c.timestamp = result.getLong("timestamp");
+            c.type = result.getInt("type");
+            c.scoreInc = result.getInt("scoreInc");
+            c.scoreOpp = result.getInt("scoreOpp");
+            c.opp = result.getString("opp").split(DEL);
+            c.replays = result.getString("replays").split(DEL);
+            return c;
+        }
+
+        /** Returns the last `n` challenges where the incumbent lost, ordered from latest to earliest. */ 
+        public static Challenge[] lastTerms(int n) {
+            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp ORDER BY timestamp DESC LIMIT ?";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setInt(1, n);
+                ResultSet result = stm.executeQuery();
+                List<Challenge> challenges = new ArrayList<>();
+                while (result.next()) {
+                    challenges.add(challengeFromSQL(result));
+                }
+                return challenges.toArray(new Challenge[0]);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return new Challenge[0];
+        }
+
+        /** Returns the first `n` challenges where the incumbent lost, ordered from latest to earliest. */ 
+        public static Challenge[] firstTerms(int n) {
             String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp ORDER BY timestamp ASC LIMIT ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setInt(1, n);
                 ResultSet result = stm.executeQuery();
+                List<Challenge> challenges = new ArrayList<>();
                 while (result.next()) {
-                    
+                    challenges.add(challengeFromSQL(result));
                 }
-
+                return challenges.toArray(new Challenge[0]);
             } catch (SQLException e) {
                 e.printStackTrace();
             }
+            return new Challenge[0];
+        }
+
+
+        public static int nthTerm(long timestamp) {
+            String sql = "SELECT COUNT(timestamp) FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND timestamp < ?";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setLong(1, timestamp);
+                ResultSet result = stm.executeQuery();
+                result.next();
+                return result.getInt(1) + 1;
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return 0;
+        }
+
+        /** Returns all challenges from `from` to `to` inclusive, from earliest to latest */
+        public static Challenge[] get(long from, long to) {
+            String sql = "SELECT * FROM " + TABLE + " WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setLong(1, from);
+                stm.setLong(2, to);
+                ResultSet result = stm.executeQuery();
+                List<Challenge> challenges = new ArrayList<>();
+                while (result.next()) {
+                    challenges.add(challengeFromSQL(result));
+                }
+                return challenges.toArray(new Challenge[0]);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return new Challenge[0];
         }
     }
 }

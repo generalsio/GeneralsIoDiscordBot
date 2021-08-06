@@ -28,6 +28,10 @@ public class Constants {
                             Mode.M2v2, 871581355262226461L,
                             Mode.Custom, 871581355526459503L
                     ))
+                    .setHillRoles(Map.of(
+                            Hill.GoTH, 871581355031560285L,
+                            Hill.AoTH, 871581355031560284L
+                    ))
                     .setIgnoreChannels(871581355711012875L)
                     .setRolesMessage(871842464917491803L)
                     .setModeratorRole(871581355031560289L)
@@ -46,6 +50,10 @@ public class Constants {
                             Mode.M1v1, 793855287110402078L,
                             Mode.M2v2, 456322523458437122L,
                             Mode.Custom, 787818938628571216L
+                    ))
+                    .setHillRoles(Map.of(
+                            Hill.GoTH, 833446837230764062L,
+                            Hill.AoTH, 851232536482021377L 
                     ))
                     .setIgnoreChannels(774660554362716181L)
                     .setRolesMessage(795825358905409606L)
@@ -94,6 +102,17 @@ public class Constants {
         public static Color SUCCESS = new Color(67, 181, 129);
     }
 
+    public static enum Hill {
+        GoTH(1),
+        AoTH(2);
+
+        Hill(int teamSize) {
+            this.teamSize = teamSize;
+        }
+
+        public int teamSize;
+    }
+
     public static class GuildInfo {
         public Map<Mode, Long> roles;
         public Map<Mode, Long> channels;
@@ -101,6 +120,7 @@ public class Constants {
         public long rolesMessage;
         public long moderatorRole;
         private boolean built;
+        public Map<Hill, Long> hillRoles;
 
         public GuildInfo() {
             this.built = false;
@@ -145,11 +165,16 @@ public class Constants {
             return this;
         }
 
+        public GuildInfo setHillRoles(Map<Hill, Long> roles) {
+            this.hillRoles = roles;
+            return this;
+        }
+
         public GuildInfo build() {
             if (this.built) throw new IllegalStateException("double-build after use");
             this.built = true;
 
-            if (this.channels == null || this.ignoreChannels == null || this.roles == null)
+            if (this.channels == null || this.ignoreChannels == null || this.roles == null || this.hillRoles == null)
                 throw new IllegalStateException("initialization of GuildInfo wrong");
 
             return this;
@@ -161,8 +186,7 @@ public class Constants {
         public final static int USER = 1;
         public final static int MOD = 2;
 
-        private Perms() {
-        }
+        private Perms() {}
 
         /**
          * @return whether said user has a given permission.

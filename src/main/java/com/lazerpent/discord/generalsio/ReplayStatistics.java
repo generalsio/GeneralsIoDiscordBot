@@ -108,6 +108,16 @@ public class ReplayStatistics {
         throw lastException;
     }
 
+    public static List<ReplayResult> getLastReplays(String username, int count) {
+        try {
+            Gson gson = new Gson();
+            return StreamSupport.stream(makeReplayRequest(username, 0, count).spliterator(), false)
+            .map((e) -> gson.fromJson(e, ReplayResult.class)).toList();
+        } catch(IOException | InterruptedException e) {
+            return null;
+        }
+    }
+
     public static List<ReplayResult> getReplays(String username) {
         ExecutorService executor = Executors.newCachedThreadPool();
         List<Callable<JsonArray>> replayCountTasks = new ArrayList<>();

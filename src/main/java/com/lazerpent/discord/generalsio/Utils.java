@@ -15,7 +15,7 @@ import java.time.Instant;
  */
 public class Utils {
     /**
-     * Prints a generic error message with a provided error message (which is put in the embed description)
+     * Creates a generic error message with a provided error message (which is put in the embed description)
      *
      * @param msg          Message object containing the user who tried this command
      * @param errorMessage The specific error message to print in the embed description
@@ -26,20 +26,45 @@ public class Utils {
                 .setColor(Constants.Colors.ERROR) // Red
                 .setTimestamp(Instant.now()).build();
     }
-
     /**
-     * Prints a generic success message with a provided message (which is put in the embed description)
+     * Creates a generic error message with a provided error message (which is put in the embed description)
      *
-     * @param msg     Message object containing the user who completed this command
-     * @param message The specific message to print in the embed description
+     * @param msg Message object containing the user who tried this command
      */
-    public static MessageEmbed complete(@NotNull Message msg, @NotNull String message) {
-        return new EmbedBuilder().setTitle("Action Completed")
-                .setDescription(message)
+    public static MessageEmbed error(@NotNull Message msg, @NotNull String title, @NotNull String description) {
+        return new EmbedBuilder().setTitle(title).setDescription(description)
                 .setFooter(msg.getAuthor().getAsTag(), msg.getAuthor().getAvatarUrl())
-                .setColor(new Color(9, 191, 5)) // Green
+                .setColor(Constants.Colors.ERROR) // Red
                 .setTimestamp(Instant.now()).build();
     }
+
+
+    /**
+     * Creates a generic success message with a provided message (which is put in the embed description)
+     *
+     * @param msg     Message object containing the user who completed this command
+     */
+    public static MessageEmbed success(@NotNull Message msg, @NotNull String description) {
+        return new EmbedBuilder().setTitle("Success")
+                .setDescription(description)
+                .setFooter(msg.getAuthor().getAsTag(), msg.getAuthor().getAvatarUrl())
+                .setColor(Constants.Colors.SUCCESS) // Green
+                .setTimestamp(Instant.now()).build();
+    }
+
+    /**
+     * Creates a generic success message with a provided message (which is put in the embed description)
+     *
+     * @param msg     Message object containing the user who completed this command
+     */
+    public static MessageEmbed success(@NotNull Message msg, @NotNull String title, @NotNull String description) {
+        return new EmbedBuilder().setTitle(title)
+                .setDescription(description)
+                .setFooter(msg.getAuthor().getAsTag(), msg.getAuthor().getAvatarUrl())
+                .setColor(Constants.Colors.SUCCESS) // Green
+                .setTimestamp(Instant.now()).build();
+    }
+
 
     public static String encodeURI(String data) {
         return URLEncoder.encode(data, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
