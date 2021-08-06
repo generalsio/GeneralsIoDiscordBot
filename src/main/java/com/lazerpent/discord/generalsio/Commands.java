@@ -1,9 +1,11 @@
 package com.lazerpent.discord.generalsio;
 
+import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
@@ -14,10 +16,15 @@ import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEve
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
+import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jfree.chart.JFreeChart;
 
 import javax.annotation.Nonnull;
+import javax.imageio.ImageIO;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -26,19 +33,24 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.MatchResult;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Commands extends ListenerAdapter {
 
+    static final String PREFIX = "!";
     // Maps holding all command methods.
     private static final Map<String, Method> commands = new HashMap<>();
     // Maps holding all categories that have their own class.
     private static final Map<String, Category> categories = new HashMap<>();
-
-    static final String PREFIX = "!";
-//    private static Feedback feedBack;
-
-
+    //    private static Feedback feedBack;
     private static boolean nickWupey = false;
 
     static {
@@ -60,8 +72,12 @@ public class Commands extends ListenerAdapter {
                     throw new IllegalStateException("invalid command handler method: " + method.getName());
                 }
 
-                if (!(Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 3 && method.getParameterTypes()[0].equals(Commands.class) && method.getParameterTypes()[1].equals(Message.class) && method.getParameterTypes()[2].equals(String[].class))) {
-                    throw new IllegalStateException("invalid command handler method method: bad signature: " + method.getName());
+                if (!(Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 3
+                      && method.getParameterTypes()[0].equals(Commands.class)
+                      && method.getParameterTypes()[1].equals(Message.class)
+                      && method.getParameterTypes()[2].equals(String[].class))) {
+                    throw new IllegalStateException(
+                            "invalid command handler method method: bad signature: " + method.getName());
                 }
 
                 for (String name : cmd.name()) {
@@ -85,7 +101,8 @@ public class Commands extends ListenerAdapter {
                     throw new Exception();
                 }
             } catch (Exception err) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + args[1] + "' is not number between 0 and 2")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + args[1] + "' is not number between 0 and " +
+                                                                    "2")).queue();
                 return;
             }
         }
@@ -135,7 +152,7 @@ public class Commands extends ListenerAdapter {
     }
 
     @Command(name = {"info"}, desc = "Credit where credit is due")
-    public static void handle_info(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    public static void handleInfo(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
                 .setTitle("Bot Information")
                 .setColor(Constants.Colors.PRIMARY)
@@ -201,7 +218,8 @@ public class Commands extends ListenerAdapter {
         }
 
         if (cmdInfo.perms() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You don't have permission to use **!" + command[0] + "**")).queue();
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
+                    "You don't have permission to use **!" + command[0] + "**")).queue();
             return;
         }
 
@@ -235,8 +253,30 @@ public class Commands extends ListenerAdapter {
                                 Make sure you add your generals.io name to our bot, using ``!addname generals.io_username``.
                                 Example: ```!addname MyName321```
                                 Head over to <#754022719879643258> to register your name.""")
-                        .addField("Roles", "Want a role specific to the game modes you play? After registering your name, head over to <#787821221164351568> to get some roles.", false)
+                        .addField("Roles", "Want a role specific to the game modes you play? After registering your " +
+                                           "name, head over to <#787821221164351568> to get some roles.", false)
                         .build()).build()).queue();
+    }
+
+    @Override
+    public void onReady(@NotNull ReadyEvent event) {
+        System.out.println(event.getJDA().getGuilds());
+    }
+
+    @Override
+    public void onGuildMessageReactionAdd(@NotNull GuildMessageReactionAddEvent event) {
+        RoleHandler.reactionAdd(event);
+    }
+
+    @Override
+    public void onGuildMemberUpdateNickname(@NotNull GuildMemberUpdateNicknameEvent event) {
+        if (event.getUser().isBot() || !nickWupey)
+            return;
+        if (event.getEntity().getIdLong() == 175430325755838464L) {
+            if (!"Wupey".equals(event.getNewNickname())) {
+                event.getGuild().modifyNickname(event.getEntity(), "Wupey").queue();
+            }
+        }
     }
 
     @Target(ElementType.METHOD)
@@ -260,28 +300,20 @@ public class Commands extends ListenerAdapter {
         String name();
     }
 
-
-    @Override
-    public void onReady(@NotNull ReadyEvent event) {
-        System.out.println(event.getJDA().getGuilds());
-    }
-
-    @Override
-    public void onGuildMessageReactionAdd(@NotNull GuildMessageReactionAddEvent event) {
-        RoleHandler.reactionAdd(event);
-    }
-
     @Category(cat = "game", name = "Game")
     public static class Game {
-        private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server, @NotNull String link, @Nullable String map, int speed) {
+        private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server,
+                                               @NotNull String link, @Nullable String map, int speed) {
             String baseURL = "https://" + server.host() + "/games/" + Utils.encodeURI(link);
 
             List<String> query = new ArrayList<>();
             if (link.equals("main") || link.equals("1v1")) {
-                map = null; speed = 1;
+                map = null;
+                speed = 1;
                 baseURL = "https://" + server.host() + "/?queue=" + Utils.encodeURI(link);
             } else if (link.equals("2v2")) {
-                map = null; speed = 1;
+                map = null;
+                speed = 1;
                 baseURL = "https://" + server.host() + "/teams/matchmaking";
             } else {
                 if (speed != 1) {
@@ -297,17 +329,17 @@ public class Commands extends ListenerAdapter {
             String spectateURL = baseURL + "?" + String.join("&", query);
 
             EmbedBuilder embed =
-                new EmbedBuilder()
-                        .setTitle("Custom Match", playURL).setColor(Constants.Colors.PRIMARY)
-                        .setDescription(playURL + "\n")
-                        .appendDescription(speed != 1 ? "\n**Speed:** " + speed : "")
-                        .appendDescription(map != null ? "\n**Map:** " + map : "")
-                        .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
-                                msg.getAuthor().getAvatarUrl());
+                    new EmbedBuilder()
+                            .setTitle("Custom Match", playURL).setColor(Constants.Colors.PRIMARY)
+                            .setDescription(playURL + "\n")
+                            .appendDescription(speed != 1 ? "\n**Speed:** " + speed : "")
+                            .appendDescription(map != null ? "\n**Map:** " + map : "")
+                            .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
+                                    msg.getAuthor().getAvatarUrl());
 
             List<Button> buttons = new ArrayList<>(List.of(
-                Button.link(playURL, "Play"),
-                Button.link(spectateURL, "Spectate")
+                    Button.link(playURL, "Play"),
+                    Button.link(spectateURL, "Spectate")
             ));
 
             if (map != null) {
@@ -322,29 +354,36 @@ public class Commands extends ListenerAdapter {
                     .build();
         }
 
-        @Command(name = {"na", "custom", "private"}, args = {"code?", "map?"}, desc = "Generate match on NA servers", perms = Constants.Perms.USER)
+        @Command(name = {"na", "custom", "private"}, args = {"code?", "map?"}, desc = "Generate match on NA servers",
+                perms = Constants.Perms.USER)
         public static void handleNA(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             customLink(msg, cmd, Constants.Server.NA);
         }
 
-        @Command(name = {"eu", "eucustom", "euprivate"}, args = {"code?", "map?"}, desc = "Generate match on EU servers", perms = Constants.Perms.USER)
+        @Command(name = {"eu", "eucustom", "euprivate"}, args = {"code?", "map?"}, desc = "Generate match on EU " +
+                                                                                          "servers", perms =
+                Constants.Perms.USER)
         public static void handleEU(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             customLink(msg, cmd, Constants.Server.EU);
         }
 
-        @Command(name = {"bot", "botcustom", "botprivate"}, args = {"code?", "map?"}, desc = "Generate match on Bot servers", perms = Constants.Perms.USER)
+        @Command(name = {"bot", "botcustom", "botprivate"}, args = {"code?", "map?"}, desc = "Generate match on Bot " +
+                                                                                             "servers", perms =
+                Constants.Perms.USER)
         public static void handleBOT(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             customLink(msg, cmd, Constants.Server.BOT);
         }
 
         private static void customLink(@NotNull Message msg, @NotNull String[] cmd, @NotNull Constants.Server server) {
-            String link = cmd.length > 1 ? cmd[1] : Long.toString((long) (Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
+            String link = cmd.length > 1 ? cmd[1] :
+                    Long.toString((long) (Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
             String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
             if (map != null && (map.equals("-") || map.equals("."))) map = null;
             msg.getChannel().sendMessage(createLinkEmbed(msg, server, link, map, 1)).queue();
         }
 
-        @Command(name = {"plots"}, args = {"code?"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
+        @Command(name = {"plots"}, args = {"code?"}, desc = "Create a 4x Plots Lazerpent game", perms =
+                Constants.Perms.USER)
         public static void handlePlots(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             String link = cmd.length > 1 ? cmd[1] : "Plots";
             msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, link, "Plots Lazerpent", 4)).queue();
@@ -356,12 +395,14 @@ public class Commands extends ListenerAdapter {
 
             Constants.Mode mode = GUILD_INFO.channelToMode(msg.getChannel().getIdLong());
             if (mode == null) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**!ping** can only be used in a game mode channel")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**!ping** can only be used in a game mode " +
+                                                                    "channel")).queue();
                 return;
             }
 
             if (!RoleHandler.tryPing(mode)) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Each role can only be pinged once every 10 minutes")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Each role can only be pinged once every 10 " +
+                                                                    "minutes")).queue();
                 return;
             }
 
@@ -370,7 +411,7 @@ public class Commands extends ListenerAdapter {
         }
 
         @Command(name = {"setuproles"}, desc = "Setup roles menu", perms = Constants.Perms.MOD)
-        public static void handle_setuprole(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+        public static void handleSetupRoles(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
             StringBuilder sb = new StringBuilder();
@@ -379,8 +420,12 @@ public class Commands extends ListenerAdapter {
             }
 
             Message m = msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Generals.io Role Selector")
-                    .setDescription("To select one or more roles, simply react with the role you would like to add or remove. \n\nEach role has a specific channel dedicated to that game mode. " +
-                                    "You can also ping all players with the role using **!ping** in that game mode's channel.\n\nWant the <@&788259902254088192> role? DM or ping <@356517795791503393>. The tester role is pinged when <@356517795791503393> is testing a beta version on the BOT server.\n\n" +
+                    .setDescription("To select one or more roles, simply react with the role you would like to add or" +
+                                    " remove. \n\nEach role has a specific channel dedicated to that game mode. " +
+                                    "You can also ping all players with the role using **!ping** in that game mode's " +
+                                    "channel.\n\nWant the <@&788259902254088192> role? DM or ping " +
+                                    "<@356517795791503393>. The tester role is pinged when <@356517795791503393> is " +
+                                    "testing a beta version on the BOT server.\n\n" +
                                     sb
                     ).setFooter("You must wait 3 seconds between adding a role and removing it.")
                     .setThumbnail(msg.getGuild().getIconUrl()).build()).complete();
@@ -394,8 +439,9 @@ public class Commands extends ListenerAdapter {
 
     @Category(cat = "user", name = "Users")
     public static class Users {
-        @Command(name = {"profile", "user"}, args = {"username? | @mention?"}, cat = "user", perms = Constants.Perms.USER, desc = "Show username of user, or vice versa")
-        public static void handle_user(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+        @Command(name = {"profile", "user"}, args = {"username? | @mention?"}, cat = "user", perms =
+                Constants.Perms.USER, desc = "Show username of user, or vice versa")
+        public static void handleUser(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             long discordId;
             String name;
 
@@ -403,7 +449,9 @@ public class Commands extends ListenerAdapter {
                 discordId = msg.getAuthor().getIdLong();
                 name = Database.getGeneralsName(discordId);
                 if (name == null) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, Objects.requireNonNull(msg.getMember()).getAsMention() + " has not registered their generals.io user")).queue();
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg,
+                            Objects.requireNonNull(msg.getMember()).getAsMention() + " has not registered their " +
+                            "generals.io user")).queue();
                     return;
                 }
             } else {
@@ -412,7 +460,8 @@ public class Commands extends ListenerAdapter {
                     name = Arrays.stream(cmd).skip(1).collect(Collectors.joining(" "));
                     discordId = Database.getDiscordId(name);
                     if (discordId == -1) {
-                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, name + " is not registered to any discord user")).queue();
+                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, name + " is not registered to any discord" +
+                                                                            " user")).queue();
                         return;
                     }
                 } else if (members.size() != 1) {
@@ -422,7 +471,8 @@ public class Commands extends ListenerAdapter {
                     discordId = members.get(0).getIdLong();
                     name = Database.getGeneralsName(discordId);
                     if (name == null) {
-                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, members.get(0).getAsMention() + " has not registered their generals.io user")).queue();
+                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, members.get(0).getAsMention() + " has not" +
+                                                                            " registered their generals.io user")).queue();
                         return;
                     }
                 }
@@ -430,7 +480,8 @@ public class Commands extends ListenerAdapter {
 
             msg.getChannel().sendMessage(
                     new MessageBuilder()
-                            .setEmbeds(new EmbedBuilder().setTitle("Profile: " + name, "https://generals.io/profiles/" + Utils.encodeURI(name)).setColor(Constants.Colors.PRIMARY)
+                            .setEmbeds(new EmbedBuilder().setTitle("Profile: " + name, "https://generals" +
+                                                                                       ".io/profiles/" + Utils.encodeURI(name)).setColor(Constants.Colors.PRIMARY)
                                     .appendDescription("**Discord:** " + Objects.requireNonNull(msg.getGuild().getMemberById(discordId)).getAsMention())
                                     .appendDescription("\n**Link:** " + "https://generals.io/profiles/" + Utils.encodeURI(name)).build())
                             .setActionRows(ActionRow.of(Button.link("https://generals.io/profiles/" + Utils.encodeURI(name), "Visit")))
@@ -438,7 +489,7 @@ public class Commands extends ListenerAdapter {
         }
 
         @Command(name = {"addname"}, args = {"username"}, cat = "user", desc = "Register generals.io username")
-        public static void handle_addname(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+        public static void handleAddName(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
             if (cmd.length < 2) {
@@ -447,7 +498,9 @@ public class Commands extends ListenerAdapter {
             }
             String username;
             if ((username = Database.getGeneralsName(Objects.requireNonNull(msg.getMember()).getIdLong())) != null) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You're already registered as **" + username + "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> to change your username.")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You're already registered as **" + username +
+                                                                    "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
+                                                                    "to change your username.")).queue();
                 return;
             }
 
@@ -462,7 +515,8 @@ public class Commands extends ListenerAdapter {
                 }
                 Member m = msg.getGuild().getMemberById(l);
                 if (m != null) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**" + username + "** is already registered to " + m.getAsMention())).queue();
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "**" + username + "** is already registered " +
+                                                                        "to " + m.getAsMention())).queue();
                     return;
                 }
             }
@@ -472,15 +526,18 @@ public class Commands extends ListenerAdapter {
                     .setDescription(msg.getMember().getAsMention() + " is now generals.io user **" + username + "**").build()).queue();
         }
 
-        @Command(name = {"setname"}, cat = "user", args = {"@mention", "username"}, desc = "Change generals.io username of user", perms = Constants.Perms.MOD)
-        public static void handle_setname(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+        @Command(name = {"setname"}, cat = "user", args = {"@mention", "username"}, desc = "Change generals.io " +
+                                                                                           "username of user", perms
+                = Constants.Perms.MOD)
+        public static void handleSetName(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
             if (msg.getMentionedMembers().size() == 0) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must mention the member to update")).queue();
                 return;
             }
 
             if (cmd.length < 2) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide the generals.io username to update")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide the generals.io username to " +
+                                                                    "update")).queue();
                 return;
             }
 
@@ -505,13 +562,396 @@ public class Commands extends ListenerAdapter {
 
     }
 
-    @Override
-    public void onGuildMemberUpdateNickname(@NotNull GuildMemberUpdateNicknameEvent event) {
-        if (event.getUser().isBot() || !nickWupey) return;
-        if (event.getEntity().getIdLong() == 175430325755838464L) {
-            if (!"Wupey".equals(event.getNewNickname())) {
-                event.getGuild().modifyNickname(event.getEntity(), "Wupey").queue();
+    @Category(cat = "stat", name = "Stats")
+    static class Stats {
+        private static final Semaphore REQUEST_LIMITER = new Semaphore(20);
+        private static final AtomicInteger REQUESTED_PLAYERS = new AtomicInteger();
+        private static final int STORED_PLAYER_LIMIT = 6;
+        private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
+
+        public static MessageEmbed getStatEmbed(List<ReplayResult> replays, String username, boolean saved) {
+            EmbedBuilder statEmbed = new EmbedBuilder().setTitle((saved ? "Saved " : "") + username + "'s Stats")
+                    .setDescription("**Total Games Played:** " + replays.size()).setColor(Constants.Colors.SUCCESS);
+            long timePlayed = (long) replays.stream().mapToDouble((r) -> r.turns
+                                                                         * Math.min(0.5,
+                    0.5 * r.getPercentile(username) * r.ranking.length / (r.ranking.length - 1))).sum();
+            statEmbed.appendDescription("\n**Total Time Played:** " + (timePlayed / 3600) + "h "
+                                        + (timePlayed / 60 % 60) + "m " + (timePlayed % 60) + "s");
+            OptionalDouble winRate1v1 = replays.stream()
+                    .filter((r) -> r.type.equals("1v1") && r.hasPlayer(username) && r.turns >= 50)
+                    .mapToInt((r) -> (r.isWin(username) ? 1 : 0)).average();
+            if (winRate1v1.isPresent()) {
+                statEmbed
+                        .appendDescription(String.format("\n**1v1 Win Rate:** %.2f%%", winRate1v1.getAsDouble() * 100));
             }
+            OptionalDouble winRateFFA = replays.stream()
+                    .filter((r) -> r.type.equals("classic") && r.hasPlayer(username) && r.turns >= 50)
+                    .mapToInt((r) -> (r.isWin(username) ? 1 : 0)).average();
+            if (winRateFFA.isPresent()) {
+                statEmbed
+                        .appendDescription(String.format("\n**FFA Win Rate:** %.2f%%", winRateFFA.getAsDouble() * 100));
+            }
+            OptionalDouble avgPercentileFFA = replays.stream()
+                    .filter((r) -> r.type.equals("classic") && r.hasPlayer(username) && r.turns >= 50)
+                    .mapToDouble((r) -> r.getPercentile(username)).average();
+            if (avgPercentileFFA.isPresent()) {
+                statEmbed.appendDescription(
+                        String.format("\n**FFA Avg. Percentile:** %.2f%%", avgPercentileFFA.getAsDouble() * 100));
+            }
+            return statEmbed.build();
+        }
+
+        private static String checkIfGraphRunnable(Message msg, String[] args) {
+            if (args.length < 2) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide a username.")).queue();
+                return null;
+            }
+            String username = Arrays.stream(args).skip(1).collect(Collectors.joining(" "));
+            if (username.length() > 18) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Provided username is too long.")).queue();
+                return null;
+            }
+            return username;
+        }
+
+        @Command(name = {"addtograph"}, cat = "stat", args = {
+                "username"}, desc = "Find a player's stats and store them for graphing.")
+        public static void handleAddToGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            String username = checkIfGraphRunnable(msg, args);
+            if (username == null) return;
+
+            if (!REQUEST_LIMITER.tryAcquire()) {
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                Utils.error(msg, "Too many commands are being processed at once! Try again later."))
+                        .queue();
+                return;
+            }
+
+            synchronized (REQUESTED_PLAYERS) {
+                if (STORED_PLAYER_LIMIT <= REQUESTED_PLAYERS.get()) {
+                    msg.getChannel()
+                            .sendMessageEmbeds(Utils.error(msg, "You can't add more than 6 players to the graph."))
+                            .queue();
+                    return;
+                }
+                REQUESTED_PLAYERS.incrementAndGet();
+            }
+            msg.getChannel().sendMessageEmbeds(
+                    new EmbedBuilder().setTitle("Loading Stats").setDescription("It might take a few moments.").build())
+                    .queue((loadMsg) -> EXECUTOR.execute(() -> {
+                        List<ReplayResult> replays = ReplayStatistics.addPlayerToGraph(username);
+                        if (replays == null) {
+                            REQUESTED_PLAYERS.decrementAndGet();
+                            msg.getChannel()
+                                    .sendMessageEmbeds(Utils.error(msg, username + " was already added to the graph."))
+                                    .queue();
+                        } else {
+                            msg.getChannel().sendMessageEmbeds(getStatEmbed(replays, username, true)).queue();
+                        }
+                        loadMsg.delete().complete();
+                        REQUEST_LIMITER.release();
+                    }));
+        }
+
+        @Command(name = {"removefromgraph"}, cat = "stat", args = {
+                "username"}, desc = "Remove a player's stats from the graph.")
+        public static void handleRemoveFromGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            String username = checkIfGraphRunnable(msg, args);
+            if (username == null) return;
+            if (!ReplayStatistics.removePlayerFromGraph(username)) {
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                Utils.error(msg, "Player's stats could not be removed since they are not stored."))
+                        .queue();
+                return;
+            }
+            msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Successful Removal")
+                    .setDescription("Removed " + username + " from graph.").setColor(Constants.Colors.SUCCESS).build())
+                    .queue();
+            REQUESTED_PLAYERS.decrementAndGet();
+        }
+
+        @Command(name = {"cleargraph"}, cat = "stat", desc = "Remove all players' stats from the graph.")
+        public static void handleClearGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            if (args.length > 1) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "This command has no arguments.")).queue();
+                return;
+            }
+            int decrease = ReplayStatistics.clearGraph();
+            msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Successful Removal")
+                    .setDescription("Cleared all users from graph.").setColor(Constants.Colors.SUCCESS).build())
+                    .queue();
+            REQUESTED_PLAYERS.addAndGet(-decrease);
+        }
+
+        @Command(name = {"showgraph"}, cat = "stat", args = {"gameMode",
+                "games | time", "bucketSize?", "starMin?"}, desc = "Graph statistics of all stored players, either " +
+                                                                   "over time or games played.", perms =
+                Constants.Perms.USER)
+        public static void handleShowGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            if (args.length < 2) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must specify a game mode.")).queue();
+                return;
+            }
+            String gameModeArg = args[1].toLowerCase();
+            if (args.length < 3) {
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                Utils.error(msg, "You must specify whether you will graph over time or games played."))
+                        .queue();
+                return;
+            }
+            if (args.length > 5) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Too many arguments.")).queue();
+                return;
+            }
+            String xAxisArg = args[2].toLowerCase();
+            int bucketSize = 200;
+            if (args.length > 3) {
+                try {
+                    bucketSize = Integer.parseInt(args[3]);
+                } catch (NumberFormatException e) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Bucket size must be an integer.")).queue();
+                    return;
+                }
+                if (bucketSize <= 0) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Bucket size must be positive.")).queue();
+                    return;
+                }
+            }
+            int starMin = 0;
+            if (args.length > 4) {
+                if (gameModeArg.equals("ffa")) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Cannot set star minimum for FFA games.")).queue();
+                    return;
+                }
+                try {
+                    starMin = Integer.parseInt(args[4]);
+                } catch (NumberFormatException e) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Star minimum must be an integer.")).queue();
+                    return;
+                }
+                if (starMin <= 0) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Star minimum must be positive.")).queue();
+                    return;
+                }
+            }
+            ReplayStatistics.GameMode gameMode;
+            ReplayStatistics.XAxisOption xAxis;
+            switch (gameModeArg) {
+                case "1v1" -> gameMode = ReplayStatistics.GameMode.ONE_V_ONE;
+                case "ffa" -> gameMode = ReplayStatistics.GameMode.FFA;
+                default -> {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must specify a valid game mode.")).queue();
+                    return;
+                }
+            }
+            switch (xAxisArg) {
+                case "time" -> xAxis = ReplayStatistics.XAxisOption.TIME;
+                case "games" -> xAxis = ReplayStatistics.XAxisOption.GAMES_PLAYED;
+                default -> {
+                    msg.getChannel()
+                            .sendMessageEmbeds(
+                                    Utils.error(msg, "You must specify whether you will graph over time or games " +
+                                                     "played."))
+                            .queue();
+                    return;
+                }
+            }
+            final int bucketSizeCapture = bucketSize;
+            final int starMinCapture = starMin;
+            EXECUTOR.execute(() -> {
+                if (!REQUEST_LIMITER.tryAcquire()) {
+                    msg.getChannel()
+                            .sendMessageEmbeds(
+                                    Utils.error(msg, "Too many commands are being processed at once! Try again later."))
+                            .queue();
+                    return;
+                }
+                JFreeChart chart = ReplayStatistics.graphStatTrend(xAxis, gameMode, bucketSizeCapture, starMinCapture);
+                ByteArrayOutputStream bytes = renderGraph(msg, chart);
+                if (bytes == null) return;
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                new EmbedBuilder().setTitle("Stat Graph").setImage("attachment://graph.png").build())
+                        .addFile(bytes.toByteArray(), "graph.png").queue();
+                REQUEST_LIMITER.release();
+            });
+        }
+
+        @Command(name = {"starhist"}, cat = "stat", args = {
+                "username"}, desc = "Graph 1v1 win rate of a player against star rating of opponents.", perms =
+                Constants.Perms.USER)
+        public static void handleStarHist(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            String username = checkIfGraphRunnable(msg, args);
+            if (username == null) return;
+            if (!REQUEST_LIMITER.tryAcquire()) {
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                Utils.error(msg, "Too many commands are being processed at once! Try again later."))
+                        .queue();
+                return;
+            }
+            msg.getChannel().sendMessageEmbeds(
+                    new EmbedBuilder().setTitle("Loading graph").setDescription("It might take a few moments.").build())
+                    .queue((loadMsg) -> EXECUTOR.execute(() -> {
+                        JFreeChart chart = ReplayStatistics.graphStarHistogram(username);
+                        ByteArrayOutputStream bytes = renderGraph(msg, chart);
+                        if (bytes == null) return;
+                        msg.getChannel()
+                                .sendMessageEmbeds(new EmbedBuilder().setTitle("Star Graph")
+                                        .setImage("attachment://graph.png").build())
+                                .addFile(bytes.toByteArray(), "graph.png").queue();
+                        loadMsg.delete().complete();
+                        REQUEST_LIMITER.release();
+                    }));
+        }
+
+        private static ByteArrayOutputStream renderGraph(Message msg, JFreeChart chart) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try {
+                ImageIO.write(chart.createBufferedImage(800, 600), "png", bytes);
+            } catch (IOException e) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Could not create graph image."))
+                        .queue();
+                REQUEST_LIMITER.release();
+                return null;
+            }
+            return bytes;
+        }
+
+        @Command(name = {"winrecord"}, cat = "stat", args = {"username1",
+                "username2"}, desc = "Show wins and losses of one player against another player in 1v1 matches.",
+                perms = Constants.Perms.USER)
+        public static void handleWinRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            String argString = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+            Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(argString);
+            List<String> uArgs = match.results()
+                    .map(MatchResult::group)
+                    .collect(Collectors.toCollection(ArrayList::new));
+            if (uArgs.size() > 2) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide exactly 2 usernames.")).queue();
+                return;
+            }
+            String username1 = uArgs.get(0);
+            String username2 = uArgs.get(1);
+            if (username1.length() > 18 || username2.length() > 18) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Provided username is too long.")).queue();
+                return;
+            }
+            if (!REQUEST_LIMITER.tryAcquire()) {
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                Utils.error(msg, "Too many commands are being processed at once! Try again later."))
+                        .queue();
+                return;
+            }
+            msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Loading Win Record")
+                    .setDescription("It might take a few moments.").build()).queue((loadMsg) -> EXECUTOR.execute(() -> {
+                List<ReplayResult> replays = ReplayStatistics.getReplays(username1);
+                replays = replays.stream().filter((r) -> r.hasPlayer(username2) && r.turns >= 50
+                                                         && (r.type.equals("1v1") || r.type.equals("custom") && r.ranking.length == 2))
+                        .collect(Collectors.toCollection(ArrayList::new));
+                int wins1v1 = 0;
+                int tot1v1 = 0;
+                int winsCustom = 0;
+                int totCustom = 0;
+                for (ReplayResult r : replays) {
+                    if (r.type.equals("1v1")) {
+                        if (r.isWin(username1))
+                            wins1v1++;
+                        tot1v1++;
+                    } else {
+                        if (r.isWin(username1))
+                            winsCustom++;
+                        totCustom++;
+                    }
+                }
+                EmbedBuilder vsEmbed = new EmbedBuilder().setTitle(username1 + " vs. " + username2)
+                        .setDescription("**In 1v1 Queue:** " + wins1v1 + "-" + (tot1v1 - wins1v1))
+                        .appendDescription(
+                                "\n**In Custom 1v1s:** " + winsCustom + "-" + (totCustom - winsCustom))
+                        .appendDescription("\n**Total:** " + (wins1v1 + winsCustom) + "-"
+                                           + (totCustom + tot1v1 - winsCustom - wins1v1));
+                if (replays.size() > 3) {
+                    vsEmbed.appendDescription("\n\n**Sample replays:**");
+                    for (int a = replays.size() - 1; a >= replays.size() - 3; a--) {
+                        Collections.swap(replays, a, ThreadLocalRandom.current().nextInt(a + 1));
+                        vsEmbed.appendDescription(
+                                "\n<https://generals.io/replays/" + replays.get(a).id + ">");
+                    }
+                }
+                loadMsg.delete().complete();
+                msg.getChannel().sendMessageEmbeds(vsEmbed.build()).queue();
+                REQUEST_LIMITER.release();
+            }));
+        }
+
+        @Command(name = {"getstats"}, cat = "stat", args = {
+                "username"}, desc = "Calculate a player's stats.", perms = Constants.Perms.USER)
+        public static void handleGetStats(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            String username = checkIfGraphRunnable(msg, args);
+            if (username == null) return;
+            if (!REQUEST_LIMITER.tryAcquire()) {
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                Utils.error(msg, "Too many commands are being processed at once! Try again later."))
+                        .queue();
+                return;
+            }
+            msg.getChannel().sendMessageEmbeds(
+                    new EmbedBuilder().setTitle("Loading Stats").setDescription("It might take a few moments.").build())
+                    .queue((loadMsg) -> EXECUTOR.execute(() -> {
+                        List<ReplayResult> replays = ReplayStatistics.getReplays(username);
+                        loadMsg.delete().complete();
+                        msg.getChannel().sendMessageEmbeds(getStatEmbed(replays, username, false)).queue();
+                        REQUEST_LIMITER.release();
+                    }));
+        }
+
+        @Command(name = {"stats2v2"}, cat = "stat", args = {
+                "username"}, desc = "Calculate 2v2 win rate stats from recent games.", perms = Constants.Perms.USER)
+        public static void handleStats2v2(@NotNull Commands self, @NotNull Message msg, String[] args) {
+            if (args.length < 2) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide a username.")).queue();
+                return;
+            }
+            String username = Arrays.stream(args).skip(1).collect(Collectors.joining(" "));
+            if (username.length() > 18) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Provided username is too long.")).queue();
+                return;
+            }
+            if (!REQUEST_LIMITER.tryAcquire()) {
+                msg.getChannel()
+                        .sendMessageEmbeds(
+                                Utils.error(msg, "Too many commands are being processed at once! Try again later."))
+                        .queue();
+                return;
+            }
+            EXECUTOR.execute(() -> {
+                Map<String, Pair<Integer, Integer>> res2v2 = ReplayStatistics.processRecent2v2Replays(username);
+                Pair<Integer, Integer> overall = res2v2.get(username);
+                if (overall == null) {
+                    msg.getChannel().sendMessageEmbeds(Utils.error(msg,
+                            "Could not find recent 2v2 games for " + username + ".")).queue();
+                } else {
+                    EmbedBuilder embed2v2 = new EmbedBuilder().setTitle("2v2 Stats").setColor(Constants.Colors.SUCCESS)
+                            .setDescription(String.format("\n**Overall Record:** %dW-%dL (%.2f%%)", overall.getLeft(),
+                                    overall.getRight() - overall.getLeft(),
+                                    100.0 * overall.getLeft() / overall.getRight()));
+                    for (String u : res2v2.keySet()) {
+                        if (u.equals(username))
+                            continue;
+                        Pair<Integer, Integer> cur = res2v2.get(u);
+                        embed2v2.appendDescription(String.format("\n**Record with %s:** %dW-%dL (%.2f%%)", u,
+                                cur.getLeft(),
+                                cur.getRight() - cur.getLeft(), 100.0 * cur.getLeft() / cur.getRight()));
+                    }
+                    msg.getChannel().sendMessageEmbeds(embed2v2.build()).queue();
+                }
+                REQUEST_LIMITER.release();
+            });
         }
     }
 }
