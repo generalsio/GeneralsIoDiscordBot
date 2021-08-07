@@ -1015,7 +1015,7 @@ public class Commands extends ListenerAdapter {
                while(true) {
                    checkAothScores();
                    try {
-                       Thread.sleep(90_000);
+                       Thread.sleep(120_000);
                    } catch (InterruptedException e) {
                        e.printStackTrace();
                    }
@@ -1030,7 +1030,8 @@ public class Commands extends ListenerAdapter {
             if (goth != 0) {
                 String gothName = Database.getGeneralsName(goth);
                 List<String> replayIDs = new ArrayList<>();
-                List<ReplayStatistics.ReplayResult> replays = ReplayStatistics.getLastReplays(gothName, 1000);
+                List<ReplayStatistics.ReplayResult> replays = ReplayStatistics.getReplays(gothName, 1000);
+                Collections.reverse(replays);
                 synchronized(curGothChallenges) {
                     boolean shouldClear = false;
                     for(ChallengeData cdata : curGothChallenges) {
@@ -1043,10 +1044,10 @@ public class Commands extends ListenerAdapter {
                         c.scoreInc = 0;
                         c.scoreOpp = 0;
                         for (ReplayStatistics.ReplayResult replay : replays) {
+                            if (replay.started < cdata.timestamp) {
+                                continue;
+                            }
                             if (replay.ranking.length == 2 && replay.hasPlayer(opponent) && replay.hasPlayer(gothName)) {
-                                if (replay.started < cdata.timestamp) {
-                                    break;
-                                }
                                 if (replay.ranking[0].name.equals(gothName)) {
                                     c.scoreInc += 1;
                                 } else {
@@ -1082,7 +1083,9 @@ public class Commands extends ListenerAdapter {
                 String aothName1 = Database.getGeneralsName(aoth1);
                 String aothName2 = Database.getGeneralsName(aoth2);
                 List<String> replayIDs = new ArrayList<>();
-                List<ReplayStatistics.ReplayResult> replays = ReplayStatistics.getLastReplays(aothName1, 1000);
+                List<ReplayStatistics.ReplayResult> replays = ReplayStatistics.getReplays(aothName1, 1000);
+                Collections.reverse(replays);
+                Map<ReplayStatistics.ReplayResult, Replay> replayMap = ReplayStatistics.convertReplayFiles(replays);
                 synchronized(curAothChallenges) {
                     boolean shouldClear = false;
                     for(ChallengeData cdata : curAothChallenges) {
@@ -1096,13 +1099,38 @@ public class Commands extends ListenerAdapter {
                         c.scoreInc = 0;
                         c.scoreOpp = 0;
                         for (ReplayStatistics.ReplayResult replay : replays) {
+                            if (replay.started < cdata.timestamp) {
+                                continue;
+                            }
+                            Replay replayFile = replayMap.get(replay);
                             if (replay.ranking.length == 4
                                     && replay.hasPlayer(opponent1) 
                                     && replay.hasPlayer(opponent2)
                                     && replay.hasPlayer(aothName1)
-                                    && replay.hasPlayer(aothName2)) { // TODO: add check that aoth is on same team
-                                if (replay.started < cdata.timestamp) {
-                                    break;
+                                    && replay.hasPlayer(aothName2)
+                                    && replayFile.teams != null) {
+                                boolean hasAothTeam = false;
+                                boolean hasOppTeam = false;
+                                boolean hasCrossTeam = false;
+                                for(int a = 0; a < replayFile.teams.length; a++) {
+                                    for(int b = a + 1; b < replayFile.teams.length; b++) {
+                                        if(replayFile.teams[a] == replayFile.teams[b]) {
+                                            String u1 = replayFile.usernames[a];
+                                            String u2 = replayFile.usernames[b];
+                                            if(u1.equals(aothName1) && u2.equals(aothName2)
+                                                    || u1.equals(aothName2) && u2.equals(aothName1)) {
+                                                hasAothTeam = true;
+                                            } else if(u1.equals(opponent1) && u2.equals(opponent2)
+                                                    || u1.equals(opponent2) && u2.equals(opponent1)) {
+                                                hasOppTeam = true;
+                                            } else {
+                                                hasCrossTeam = true;
+                                            }
+                                        }                                        
+                                    }
+                                }
+                                if(!hasAothTeam || !hasOppTeam || hasCrossTeam) {
+                                    continue;
                                 }
                                 if (replay.ranking[0].name.equals(aothName1) || replay.ranking[0].name.equals(aothName2)) {
                                     c.scoreInc += 1;
@@ -1234,74 +1262,12 @@ public class Commands extends ListenerAdapter {
 
         @Command(name = {"goth"}, args={"id?"}, desc = "Show information about the given term or challenge", perms = Constants.Perms.USER)
         public static void handleGoth(@NotNull Commands self, @NotNull Message msg, String[] args) {
-            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
-
-            char c = 'T';
-            long n = 0;
-            if (args.length > 1 && args[1].length() != 0) {
-                c = args[1].charAt(0);
-                try {
-                    n = Long.parseLong(args[1].substring(1));
-                } catch (NumberFormatException e) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, args[1] + " is not a number")).queue();
-                    return;
-                }
+            if(args.length < 2) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify a subcommand.")).queue();
+                return;
             }
-
-            if (c == 'T') {
-                Database.Hill.Challenge term;
-                Database.Hill.Challenge nextTerm = null;
-                int nth = -1;
-                if (n == 0) {
-                    Database.Hill.Challenge[] terms = Database.Hill.lastTerms(Constants.Hill.GoTH, 1);
-                    if (terms.length == 0) {
-                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, "GoTH term not found")).queue();
-                        return;
-                    }
-                    term = terms[0];
-                    nth = Database.Hill.nthTerm(Constants.Hill.GoTH, term.timestamp);
-                } else {
-                    Database.Hill.Challenge[] terms = Database.Hill.firstTerms(Constants.Hill.GoTH, (int)n+1);
-                    if (terms.length < (int)n) {
-                        msg.getChannel().sendMessageEmbeds(Utils.error(msg, "GoTH term not found")).queue();
-                        return;
-                    }
-                    term = terms[(int)n-1];
-
-                    if (terms.length > n) {
-                        nextTerm = terms[(int)n];
-                    }
-                    nth = (int)n;
-                }
-                Database.Hill.Challenge[] challenges = Database.Hill.get(Constants.Hill.GoTH, term.timestamp+1, nextTerm == null ? System.currentTimeMillis() : nextTerm.timestamp);
-                StringBuilder sb = new StringBuilder();
-
-                for (Database.Hill.Challenge ch : challenges) {
-                    long oppMember = Database.getDiscordId(ch.opp[0]);
-                    sb.append("`C" + ch.timestamp + "`: " + ch.scoreInc + "-" + ch.scoreOpp + " vs " + ch.opp[0] + " <@" + oppMember + ">\n");
-                }
-                if (challenges.length == 0) {
-                    sb.append("No challenges");
-                }
-
-                String inc = term.opp[0];
-                Member incMember = msg.getGuild().getMemberById(Database.getDiscordId(inc));
-
-                msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
-                    .setColor(Constants.Colors.PRIMARY)
-                    .setTitle("GoTH Term")
-                    .setDescription("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.GoTH) + ">: " + inc + " " + incMember.getUser().getAsMention())
-                    .addField("Challenges (" + challenges.length + ")", sb.toString(), false)
-                    .setFooter("ID: T" + nth)
-                    .build()).queue();
-            } else if (c == 'C') {
-                Database.Hill.Challenge[] challenges = Database.Hill.get(Constants.Hill.GoTH, n, n);
-                if (challenges.length == 0) {
-                    msg.getChannel().sendMessageEmbeds(Utils.error(msg, "GoTH challenge not found")).queue();
-                    return;
-                }
-
-                msg.getChannel().sendMessageEmbeds(scoreEmbed(challenges[0], Constants.Hill.GoTH)).queue();
+            if(args[1].toLowerCase().equals("top")) {
+                showGothHallOfFame(self, msg, args);
             }
         }
 
@@ -1560,10 +1526,9 @@ public class Commands extends ListenerAdapter {
             }
         }
         
-        public void showGothHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
-            // TODO: make !goth top run this
+        public static void showGothHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
             // TODO: test hall of fame
-            if(args.length > 1) {
+            if(args.length > 2) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Too many arguments provided.")).queue();
                 return;
             }
@@ -1622,8 +1587,9 @@ public class Commands extends ListenerAdapter {
             msg.getChannel().sendMessageEmbeds(hofEmbed.build()).queue();
         }
         
-        public void showGothRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
+        public static void showGothRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
             // TODO: implement !goth results
+            
         }
     }
 

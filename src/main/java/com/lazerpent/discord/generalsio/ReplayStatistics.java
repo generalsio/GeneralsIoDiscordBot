@@ -33,6 +33,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
+import java.time.Instant;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.*;
@@ -44,6 +45,7 @@ public class ReplayStatistics {
     public static final Map<String, List<ReplayResult>> storedReplays = new HashMap<>();
     public static StandardChartTheme theme = (StandardChartTheme) StandardChartTheme.createJFreeTheme();
     public static Semaphore replayRequestSem = new Semaphore(250);
+    public static Semaphore replayIndividualSem = new Semaphore(400);
 
     static {
         try {
@@ -108,12 +110,12 @@ public class ReplayStatistics {
         throw lastException;
     }
 
-    public static List<ReplayResult> getLastReplays(String username, int count) {
+    public static List<ReplayResult> getReplays(String username, int count, int offset) {
         ExecutorService executor = Executors.newCachedThreadPool();
         List<Callable<JsonArray>> replayCollectTasks = new ArrayList<>();
         for (int a = 0; a < (count - 1) / 200 + 1; a++) {
             int id = a;
-            replayCollectTasks.add(() -> makeReplayRequest(username, id * 200, 200));
+            replayCollectTasks.add(() -> makeReplayRequest(username, offset + id * 200, Math.min(200, count - 200 * id)));
         }
         List<Future<JsonArray>> replayCollectResults;
         try {
@@ -137,6 +139,10 @@ public class ReplayStatistics {
             }
         }
         return res;
+    }
+    
+    public static List<ReplayResult> getReplays(String username, int count) {
+        return getReplays(username, count, 0);
     }
 
     public static List<ReplayResult> getReplays(String username) {
@@ -168,33 +174,7 @@ public class ReplayStatistics {
             }
             szEstimate *= 2;
         }
-        List<Callable<JsonArray>> replayCollectTasks = new ArrayList<>();
-        for (int a = 0; a < (szEstimate - 1) / 200 + 1; a++) {
-            int id = a;
-            replayCollectTasks.add(() -> makeReplayRequest(username, id * 200, 200));
-        }
-        List<Future<JsonArray>> replayCollectResults;
-        try {
-            replayCollectResults = executor.invokeAll(replayCollectTasks);
-        } catch (InterruptedException e2) {
-            System.out.println("Interrupted while retrieving replays: " + e2.getMessage());
-            return new ArrayList<>();
-        }
-        List<ReplayResult> res = new ArrayList<>();
-        for (Future<JsonArray> future : replayCollectResults) {
-            try {
-                Gson gson = new Gson();
-                res.addAll(StreamSupport.stream(future.get().spliterator(), false)
-                        .map((e) -> gson.fromJson(e, ReplayResult.class)).toList());
-            } catch (InterruptedException e1) {
-                System.out.println("Interrupted while retrieving replays: " + e1.getMessage());
-                return new ArrayList<>();
-            } catch (ExecutionException e1) {
-                System.out.println("Could not retrieve replays: " + e1.getMessage());
-                return new ArrayList<>();
-            }
-        }
-        return res;
+        return getReplays(username, szEstimate);
     }
 
     public static List<ReplayResult> addPlayerToGraph(String username) {
@@ -361,103 +341,118 @@ public class ReplayStatistics {
         verticalAxis.setNumberFormatOverride(new DecimalFormat("#%"));
         return chart;
     }
+    
+    public static Replay getReplayFile(String id) {
+        try {
+            replayIndividualSem.acquire();
+        } catch (InterruptedException e) {
+            System.out.println("Interrupted while waiting for individual replay semaphore (" + id + "): " + e.getMessage());
+            return null;
+        }
+        URL replayURL;
+        try {
+            replayURL = new URL("https://generalsio-replays-na.s3.amazonaws.com/" + id +
+                                ".gior");
+        } catch (MalformedURLException e) {
+            replayIndividualSem.release();
+            System.out.println("Could not acquire replay " + id + ": " + e.getMessage());
+            return null;
+        }
+        replayIndividualSem.release();
+        try (InputStream compressedReplay = replayURL.openStream()) {
+            Replay curReplay = new Replay(JsonParser.parseString(
+                    LZStringImpl.decodeCompressedReplay(compressedReplay)).getAsJsonArray());
+            return curReplay;
+        } catch (IOException | JsonSyntaxException | DataFormatException e) {
+            System.out.println("Could not decode replay " + id + ": " + e.getMessage());
+            return null;
+        }
+    }
+    
+    public static Map<ReplayResult, Replay> convertReplayFiles(List<ReplayResult> reps) {
+        ExecutorService executor = Executors.newCachedThreadPool();
+        try {
+            List<Future<Map.Entry<ReplayResult, Replay>>> repFiles = executor.invokeAll(reps.stream().map((r) -> {
+                Callable<Map.Entry<ReplayResult, Replay>> task = () -> Map.entry(r, getReplayFile(r.id));
+                return task;
+            }).toList());
+            return repFiles.stream().map((r) -> {
+                try {
+                    return r.get();
+                } catch (InterruptedException e1) {
+                    System.out.println("Interrupted while requesting replay files.");
+                    return null;
+                } catch (ExecutionException e2) {
+                    System.out.println("Could not execute replay file requests.");
+                    return null;
+                }
+            }).filter((r) -> r != null).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        } catch (InterruptedException e) {
+            System.out.println("Interrupted while requesting replay files.");
+            return new HashMap<>();
+        }
+    }
 
     public static Map<String, Pair<Integer, Integer>> processRecent2v2Replays(String username) {
         Map<String, Pair<Integer, Integer>> res = new ConcurrentHashMap<>();
-        Date cutoff = null;
+        Instant cutoff = null;
         int curOffset = 0;
         boolean terminated = false;
-        Gson gson = new Gson();
         while (!terminated) {
-            try {
-                URL playerURL = new URL("https://generals.io/api/replaysForUsername?u=" +
-                                        URLEncoder.encode(username, StandardCharsets.UTF_8) +
-                                        "&offset=" + curOffset + "&count=200");
-                try (InputStream replays = playerURL.openStream()) {
-                    curOffset += 200;
-                    JsonArray repList =
-                            JsonParser.parseReader(
-                                    new InputStreamReader(replays, StandardCharsets.UTF_8)).getAsJsonArray();
-                    if (repList.size() == 0) {
-                        terminated = true;
-                        break;
-                    }
-                    List<ReplayResult> replayResults = StreamSupport.stream(repList.spliterator(), false)
-                            .map((e) -> gson.fromJson(e, ReplayResult.class))
-                            .toList();
-                    if (cutoff == null) {
-                        cutoff = new Date(replayResults.get(0).started - 24L * 60L * 60L * 1000L);
-                    }
-                    Date streamCutoff = cutoff;
-                    Optional<Boolean> shouldTerminate = replayResults.parallelStream()
-                            .filter((r) -> r.type.equals("2v2") || r.type.equals("custom") && r.ranking.length == 4)
-                            .map((r) -> {
-                                Date startDate = new Date(r.started);
-                                if (startDate.before(streamCutoff)) {
-                                    return true;
-                                }
-                                String winner = r.ranking[0].name;
-                                if (winner == null) return false;
-                                URL replayURL;
-                                try {
-                                    replayURL = new URL("https://generalsio-replays-na.s3.amazonaws.com/" + r.id +
-                                                        ".gior");
-                                } catch (MalformedURLException e1) {
-                                    return false;
-                                }
-                                try (InputStream compressedReplay = replayURL.openStream()) {
-                                    Replay curReplay = new Replay(JsonParser.parseString(
-                                            LZStringImpl.decodeCompressedReplay(compressedReplay)).getAsJsonArray());
-                                    if (curReplay.teams != null) {
-                                        int winIdx = 0;
-                                        int playerIdx = 0;
-                                        for (int a = 0; a < curReplay.usernames.length; a++) {
-                                            if (curReplay.usernames[a].equals(winner)) {
-                                                winIdx = a;
-                                            }
-                                            if (curReplay.usernames[a].equals(username)) {
-                                                playerIdx = a;
-                                            }
-                                        }
-                                        String partner = "";
-                                        Set<Integer> s = new HashSet<>();
-                                        boolean not2v2 = false;
-                                        for (int a = 0; a < curReplay.teams.length; a++) {
-                                            if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
-                                                if (!partner.equals("")) {
-                                                    not2v2 = true;
-                                                    break;
-                                                }
-                                                partner = curReplay.usernames[a];
-                                            }
-                                            s.add(curReplay.teams[a]);
-                                        }
-                                        if (not2v2) return false;
-                                        if (s.size() != 2) return false;
-                                        if (partner.equals("")) return false;
-                                        res.merge(partner,
-                                                Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                                        0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                                        a.getRight() + b.getRight()));
-                                        res.merge(username,
-                                                Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                                        0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                                        a.getRight() + b.getRight()));
-                                    }
-                                } catch (JsonSyntaxException | DataFormatException | IOException e) {
-                                    e.printStackTrace();
-                                }
-
-                                return false;
-                            })
-                            .reduce(Boolean::logicalOr);
-                    terminated = shouldTerminate.isEmpty() || shouldTerminate.get();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
+            List<ReplayResult> replayResults = getReplays(username, 200, curOffset);
+            if(replayResults.size() == 0) {
+                terminated = true;
+                break;
             }
+            if (cutoff == null) {
+                cutoff = Instant.ofEpochMilli(replayResults.get(0).started - 24L * 60L * 60L * 1000L);
+            }
+            if(Instant.ofEpochMilli(replayResults.get(replayResults.size() - 1).started).isBefore(cutoff)) {
+                terminated = true;
+            }
+            replayResults = replayResults.parallelStream()
+                    .filter((r) -> r.type.equals("2v2") || r.type.equals("custom") && r.ranking.length == 4)
+                    .toList();
+            convertReplayFiles(replayResults).entrySet().stream()
+                    .forEach((entry) -> {
+                        String winner = entry.getKey().ranking[0].name;
+                        if (winner == null) return;
+                        Replay curReplay= entry.getValue();
+                        if (curReplay.teams != null) {
+                            int winIdx = 0;
+                            int playerIdx = 0;
+                            for (int a = 0; a < curReplay.usernames.length; a++) {
+                                if (curReplay.usernames[a].equals(winner)) {
+                                    winIdx = a;
+                                }
+                                if (curReplay.usernames[a].equals(username)) {
+                                    playerIdx = a;
+                                }
+                            }
+                            String partner = "";
+                            Set<Integer> s = new HashSet<>();
+                            boolean not2v2 = false;
+                            for (int a = 0; a < curReplay.teams.length; a++) {
+                                if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
+                                    if (!partner.equals("")) {
+                                        not2v2 = true;
+                                        break;
+                                    }
+                                    partner = curReplay.usernames[a];
+                                }
+                                s.add(curReplay.teams[a]);
+                            }
+                            if (not2v2 || s.size() != 2 || partner.equals("")) return;
+                            res.merge(partner,
+                                    Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                            0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
+                                            a.getRight() + b.getRight()));
+                            res.merge(username,
+                                    Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                            0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
+                                            a.getRight() + b.getRight()));
+                        }
+                    });
         }
         return res;
     }
