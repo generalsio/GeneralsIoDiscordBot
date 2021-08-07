@@ -109,13 +109,34 @@ public class ReplayStatistics {
     }
 
     public static List<ReplayResult> getLastReplays(String username, int count) {
-        try {
-            Gson gson = new Gson();
-            return StreamSupport.stream(makeReplayRequest(username, 0, count).spliterator(), false)
-            .map((e) -> gson.fromJson(e, ReplayResult.class)).toList();
-        } catch(IOException | InterruptedException e) {
-            return null;
+        ExecutorService executor = Executors.newCachedThreadPool();
+        List<Callable<JsonArray>> replayCollectTasks = new ArrayList<>();
+        for (int a = 0; a < (count - 1) / 200 + 1; a++) {
+            int id = a;
+            replayCollectTasks.add(() -> makeReplayRequest(username, id * 200, 200));
         }
+        List<Future<JsonArray>> replayCollectResults;
+        try {
+            replayCollectResults = executor.invokeAll(replayCollectTasks);
+        } catch (InterruptedException e2) {
+            System.out.println("Interrupted while retrieving replays: " + e2.getMessage());
+            return new ArrayList<>();
+        }
+        List<ReplayResult> res = new ArrayList<>();
+        for (Future<JsonArray> future : replayCollectResults) {
+            try {
+                Gson gson = new Gson();
+                res.addAll(StreamSupport.stream(future.get().spliterator(), false)
+                        .map((e) -> gson.fromJson(e, ReplayResult.class)).toList());
+            } catch (InterruptedException e1) {
+                System.out.println("Interrupted while retrieving replays: " + e1.getMessage());
+                return new ArrayList<>();
+            } catch (ExecutionException e1) {
+                System.out.println("Could not retrieve replays: " + e1.getMessage());
+                return new ArrayList<>();
+            }
+        }
+        return res;
     }
 
     public static List<ReplayResult> getReplays(String username) {

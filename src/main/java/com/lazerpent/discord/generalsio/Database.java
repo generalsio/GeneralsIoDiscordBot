@@ -102,7 +102,7 @@ public class Database {
         private final static String TABLE = "challenges";
         private final static String DEL = "\u001F";
         // CREATE TABLE challenges (timestamp INT NOT NULL PRIMARY KEY, type INT NOT NULL, scoreInc INT NOT NULL, scoreOpp INT NOT NULL, opp TEXT NOT NULL, replays TEXT NOT NULL);
-
+        // CREATE TABLE team_names (usernames TEXT NOT NULL, teamName TEXT NOT NULL);
         public static class Challenge {
             public long timestamp;
             public Constants.Hill type;
