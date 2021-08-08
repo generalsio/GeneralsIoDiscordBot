@@ -1,8 +1,12 @@
 package com.lazerpent.discord.generalsio;
 
+import com.lazerpent.discord.generalsio.commands.Game;
+import com.lazerpent.discord.generalsio.commands.Hill;
+import com.lazerpent.discord.generalsio.commands.Stats;
+import com.lazerpent.discord.generalsio.commands.Users;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
-import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
@@ -11,13 +15,9 @@ import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-
 import org.jetbrains.annotations.NotNull;
 
-import com.lazerpent.discord.generalsio.commands.*;
-
 import javax.annotation.Nonnull;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -38,7 +38,7 @@ public class Commands extends ListenerAdapter {
 
     static {
         List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
-        Class<?>[] classes = { Game.class, Hill.class, Stats.class, Users.class };
+        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class};
 
         for (Class<?> classCamelCase : classes) {
             Category category = classCamelCase.getAnnotation(Category.class);
@@ -136,13 +136,19 @@ public class Commands extends ListenerAdapter {
 
     @Command(name = {"info"}, desc = "Credit where credit is due")
     public static void handleInfo(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
+        final EmbedBuilder bot_information = new EmbedBuilder()
                 .setTitle("Bot Information")
                 .setColor(Constants.Colors.PRIMARY)
                 .setDescription("Authors: **Lazerpent**, **person2597**, **pasghetti**")
                 .appendDescription("\n\nhttps://github.com/Lazerpent/GeneralsIoDiscordBot")
                 .setFooter("Written using JDA (Java Discord API)")
-                .setThumbnail(msg.getJDA().getSelfUser().getEffectiveAvatarUrl()).build()).queue();
+                .setThumbnail(msg.getJDA().getSelfUser().getEffectiveAvatarUrl());
+        if (Constants.GUILD_INFO.get(msg.getGuild().getIdLong()).development) {
+            bot_information.addField("Development Mode", "Currently running in development mode by " + System.getenv(
+                    "DEVELOPMENT_MODE_DEVELOPER"), false);
+        }
+
+        msg.getChannel().sendMessageEmbeds(bot_information.build()).queue();
     }
 
     @Override

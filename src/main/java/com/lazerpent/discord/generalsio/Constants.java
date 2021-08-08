@@ -35,6 +35,7 @@ public class Constants {
                     .setIgnoreChannels(871581355711012875L)
                     .setRolesMessage(871842464917491803L)
                     .setModeratorRole(871581355031560289L)
+                    .setDevelopment(true)
                     .build(),
 
             // real server
@@ -102,7 +103,7 @@ public class Constants {
         public static Color SUCCESS = new Color(67, 181, 129);
     }
 
-    public static enum Hill {
+    public enum Hill {
         GoTH(0, 1),
         AoTH(1, 2);
 
@@ -132,9 +133,11 @@ public class Constants {
         public long moderatorRole;
         private boolean built;
         public Map<Hill, Long> hillRoles;
+        public boolean development;
 
         public GuildInfo() {
             this.built = false;
+            this.development = false;
         }
 
         public Mode channelToMode(long channelID) {
@@ -167,17 +170,26 @@ public class Constants {
         }
 
         public GuildInfo setRolesMessage(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.rolesMessage = id;
             return this;
         }
 
         public GuildInfo setModeratorRole(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.moderatorRole = id;
             return this;
         }
 
         public GuildInfo setHillRoles(Map<Hill, Long> roles) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.hillRoles = roles;
+            return this;
+        }
+
+        public GuildInfo setDevelopment(boolean dev) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
+            this.development = dev;
             return this;
         }
 
