@@ -1,9 +1,39 @@
 package com.lazerpent.discord.generalsio;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import java.util.zip.DataFormatException;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
@@ -23,23 +53,10 @@ import org.jfree.data.time.TimeSeriesCollection;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
-import java.awt.*;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.text.DecimalFormat;
-import java.time.Instant;
-import java.util.List;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-import java.util.zip.DataFormatException;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 
 public class ReplayStatistics {
     public static final Map<String, List<ReplayResult>> storedReplays = new HashMap<>();
@@ -445,22 +462,22 @@ public class ReplayStatistics {
         return res;
     }
 
-    enum GameMode {
+    public enum GameMode {
         ONE_V_ONE,
         FFA,
     }
 
-    enum XAxisOption {
+    public enum XAxisOption {
         TIME,
         GAMES_PLAYED,
     }
 
-    static class ReplayResult {
-        String type;
-        String id;
-        long started;
-        int turns;
-        Player[] ranking;
+    public static class ReplayResult {
+        public String type;
+        public String id;
+        public long started;
+        public int turns;
+        public Player[] ranking;
 
         public double getPercentile(String username) {
             for (int a = 0; a < ranking.length; a++) {
@@ -494,13 +511,13 @@ public class ReplayStatistics {
             return ranking[ranking[0].name != null && ranking[0].name.equals(username) ? 1 : 0].stars;
         }
 
-        static class Player {
-            String name;
-            int stars;
+        public static class Player {
+            public String name;
+            public int stars;
         }
     }
 
-    record StarRange(int min) implements Comparable<StarRange> {
+    public record StarRange(int min) implements Comparable<StarRange> {
         public static final int STAR_INTERVAL = 10;
 
         @Override

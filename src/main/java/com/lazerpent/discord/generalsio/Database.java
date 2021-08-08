@@ -6,7 +6,9 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Database {
     private static final Connection connection;
@@ -58,6 +60,16 @@ public class Database {
                     "replays TEXT NOT NULL)");
         } catch (SQLException e) {
             System.out.println("Error creating table challenges.");
+            e.printStackTrace();
+        }
+        
+        try {
+            connection.createStatement().execute(
+                    "CREATE TABLE IF NOT EXISTS team_names " +
+                    "(team TEXT NOT NULL PRIMARY KEY, " +
+                    "teamName TEXT NOT NULL)");
+        } catch (SQLException e) {
+            System.out.println("Error creating table team_names.");
             e.printStackTrace();
         }
 
@@ -227,7 +239,9 @@ public class Database {
                 stm.setInt(i++, c.type.id);
                 stm.setInt(i++, c.scoreInc);
                 stm.setInt(i++, c.scoreOpp);
-                stm.setString(i++, String.join(DEL, c.opp));
+                stm.setString(i++, Arrays.stream(c.opp)
+                        .mapToObj(String::valueOf)
+                        .collect(Collectors.joining(DEL)));
                 stm.setString(i, String.join(DEL, c.replays));
                 stm.execute();
                 return c.timestamp;
@@ -276,7 +290,9 @@ public class Database {
             c.type = Constants.Hill.fromId(result.getInt("type"));
             c.scoreInc = result.getInt("scoreInc");
             c.scoreOpp = result.getInt("scoreOpp");
-            c.opp = result.getString("opp").split(DEL);
+            c.opp = Arrays.stream(result.getString("opp").split(DEL))
+                    .mapToLong(Long::parseLong)
+                    .toArray();
             c.replays = result.getString("replays").split(DEL);
             if (c.replays.length == 1 && c.replays[0].length() == 0) {
                 c.replays = new String[0];
@@ -344,16 +360,75 @@ public class Database {
             }
             return new Challenge[0];
         }
+        
+        public static Challenge[] getWithOpponent(Constants.Hill type, long from, long to, long[] opp) {
+            String sql = "SELECT * FROM challenges WHERE timestamp >= ? AND timestamp <= ? AND type = ? AND opp = ? ORDER BY "
+                    + "timestamp";
+            
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setLong(1, from);
+                stm.setLong(2, to);
+                stm.setInt(3, type.id);
+                stm.setString(4, Arrays.stream(opp)
+                        .mapToObj(String::valueOf)
+                        .collect(Collectors.joining(DEL)));
+                ResultSet result = stm.executeQuery();
+                List<Challenge> challenges = new ArrayList<>();
+                while (result.next()) {
+                    challenges.add(challengeFromSQL(result));
+                }
+                return challenges.toArray(new Challenge[0]);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return new Challenge[0];
+        }
+        
+        public static String getTeamName(long[] opp) {
+            String sql = "SELECT teamName FROM team_names WHERE team = ?";
+            String team = Arrays.stream(opp).mapToObj(String::valueOf)
+                    .collect(Collectors.joining(DEL));
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setString(1, team);
+                ResultSet result = stm.executeQuery();
+                if(result.next()) {
+                    return result.getString("teamName");
+                } else {
+                    return null;
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+        
+        public static void setTeamName(long[] opp, String name) {
+            String sql = "INSERT INTO team_names(team, teamName) "
+                    + "VALUES(?, ?) ON CONFLICT(team)"
+                    + "DO UPDATE SET teamName = excluded.teamName";
+            String team = Arrays.stream(opp).mapToObj(String::valueOf)
+                    .collect(Collectors.joining(DEL));
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setString(1, team);
+                stm.setString(2, name);
+                stm.execute();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
 
         // CREATE TABLE challenges (timestamp INT NOT NULL PRIMARY KEY, type INT NOT NULL, scoreInc INT NOT NULL,
         // scoreOpp INT NOT NULL, opp TEXT NOT NULL, replays TEXT NOT NULL);
-        // CREATE TABLE team_names (usernames TEXT NOT NULL, teamName TEXT NOT NULL);
+        // CREATE TABLE team_names (team TEXT NOT NULL, teamName TEXT NOT NULL);
         public static class Challenge {
             public long timestamp;
             public Constants.Hill type;
             public int scoreInc;
             public int scoreOpp;
-            public String[] opp;
+            public long[] opp;
             public String[] replays;
         }
     }
