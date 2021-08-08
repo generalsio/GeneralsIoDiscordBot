@@ -1,20 +1,15 @@
 package com.lazerpent.discord.generalsio;
 
-import net.dv8tion.jda.api.entities.Guild;
-
 import com.lazerpent.discord.generalsio.Database.Hill.Challenge;
 import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.MessageBuilder;
-import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageEmbed;
-import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameEvent;
+import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -24,7 +19,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jfree.chart.JFreeChart;
-import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 
 import javax.annotation.Nonnull;
 import javax.imageio.ImageIO;
@@ -48,7 +42,6 @@ import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class Commands extends ListenerAdapter {
 
@@ -979,6 +972,13 @@ public class Commands extends ListenerAdapter {
         }
     }
 
+    @Override
+    public void onButtonClick(ButtonClickEvent event) {
+        if (event.getComponentId().startsWith("goth-") || event.getComponentId().startsWith("aoth-")) {
+            Hill.handleButtonClick(event);
+        }
+    }
+
     @Category(cat = "hill", name = "GoTH/AoTH")
     public static class Hill {
         private static class ChallengeData {
@@ -986,6 +986,7 @@ public class Commands extends ListenerAdapter {
             public int length;
             public long timestamp;
             public Message challengeMsg;
+
             public ChallengeData(long[] opp, int length, long timestamp, Message challengeMsg) {
                 this.opp = opp;
                 this.length = length;
@@ -1036,7 +1037,7 @@ public class Commands extends ListenerAdapter {
                     boolean shouldClear = false;
                     for(ChallengeData cdata : curGothChallenges) {
                         String opponent = Database.getGeneralsName(cdata.opp[0]);
-        
+
                         Database.Hill.Challenge c = new Database.Hill.Challenge();
                         c.timestamp = cdata.timestamp;
                         c.type = Constants.Hill.GoTH;
@@ -1094,7 +1095,7 @@ public class Commands extends ListenerAdapter {
                     for(ChallengeData cdata : curAothChallenges) {
                         String opponent1 = Database.getGeneralsName(cdata.opp[0]);
                         String opponent2 = Database.getGeneralsName(cdata.opp[1]);
-        
+
                         Database.Hill.Challenge c = new Database.Hill.Challenge();
                         c.timestamp = cdata.timestamp;
                         c.type = Constants.Hill.GoTH;
@@ -1110,11 +1111,11 @@ public class Commands extends ListenerAdapter {
                             }
                             Replay replayFile = replayMap.get(replay);
                             if (replay.ranking.length == 4
-                                    && replay.hasPlayer(opponent1) 
-                                    && replay.hasPlayer(opponent2)
-                                    && replay.hasPlayer(aothName1)
-                                    && replay.hasPlayer(aothName2)
-                                    && replayFile.teams != null) {
+                                && replay.hasPlayer(opponent1)
+                                && replay.hasPlayer(opponent2)
+                                && replay.hasPlayer(aothName1)
+                                && replay.hasPlayer(aothName2)
+                                && replayFile.teams != null) {
                                 boolean hasAothTeam = false;
                                 boolean hasOppTeam = false;
                                 boolean hasCrossTeam = false;
@@ -1132,7 +1133,7 @@ public class Commands extends ListenerAdapter {
                                             } else {
                                                 hasCrossTeam = true;
                                             }
-                                        }                                        
+                                        }
                                     }
                                 }
                                 if(!hasAothTeam || !hasOppTeam || hasCrossTeam) {
@@ -1164,12 +1165,13 @@ public class Commands extends ListenerAdapter {
         private static MessageEmbed scoreEmbed(Database.Hill.Challenge c, Constants.Hill mode) {
             long oppMember = Long.parseLong(c.opp[0]);
             String oppName = Database.getGeneralsName(oppMember);
-            EmbedBuilder embed =  new EmbedBuilder()
-                .setTitle("GoTH Results")
-                .setColor(Constants.Colors.PRIMARY)
-                .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc 
-                        + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") 
-                        + " vs " + oppName + "(<@" + oppMember + ">)");
+            EmbedBuilder embed = new EmbedBuilder()
+                    .setTitle("GoTH Results")
+                    .setColor(Constants.Colors.PRIMARY)
+                    .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc
+                                                               + "**-" + c.scoreOpp :
+                            c.scoreInc + "-**" + c.scoreOpp + "**")
+                                    + " vs " + oppName + "(<@" + oppMember + ">)");
 
             if (c.replays.length != 0) {
                 StringBuilder sb = new StringBuilder();
@@ -1250,7 +1252,7 @@ public class Commands extends ListenerAdapter {
         public static void handleGothScore(@NotNull Commands self, @NotNull Message msg, String[] args) {
             if (args.length < 3 || msg.getMentionedMembers().size() == 0) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must mention a user and provide a score")).queue();
-                return;                    
+                return;
             }
 
             String score = args[1];
@@ -1267,7 +1269,7 @@ public class Commands extends ListenerAdapter {
             }
             c.timestamp = msg.getTimeCreated().toEpochSecond();
             c.type = Constants.Hill.GoTH;
-            
+
             String name = Database.getGeneralsName(mention.getIdLong());
             if (name == null) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, mention.getAsMention() + " has not registered their " +
@@ -1282,11 +1284,11 @@ public class Commands extends ListenerAdapter {
 
         @Command(name = {"goth"}, args={"id?"}, desc = "Show information about the given term or challenge", perms = Constants.Perms.USER)
         public static void handleGoth(@NotNull Commands self, @NotNull Message msg, String[] args) {
-            if(args.length < 2) {
+            if (args.length < 2) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify a subcommand.")).queue();
                 return;
             }
-            if(args[1].toLowerCase().equals("top")) {
+            if (args[1].equalsIgnoreCase("top")) {
                 showGothHallOfFame(self, msg, args);
             }
         }
@@ -1309,11 +1311,12 @@ public class Commands extends ListenerAdapter {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
                 return;
             }
-            if(args.length < 3) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify number of games in set (best of x games).")).queue();
+            if (args.length < 3) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify number of games in set (best of x " +
+                                                                    "games).")).queue();
                 return;
             }
-            if(args[2].length() < 2 || !args[2].substring(0, 2).toLowerCase().equals("bo")) {
+            if (args[2].length() < 2 || !args[2].substring(0, 2).equalsIgnoreCase("bo")) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\"bestof\" argument should be in format bo_ (ex. bo3).")).queue();
                 return;
             }
@@ -1348,31 +1351,34 @@ public class Commands extends ListenerAdapter {
             }
             String username = Database.getGeneralsName(msg.getAuthor().getIdLong());
             if(partner == null && mode == Constants.Hill.AoTH) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Partner must register generals.io username to challenge AoTH.")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Partner must register generals.io username to " +
+                                                                    "challenge AoTH.")).queue();
                 return;
             }
-            if(username == null) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must register generals.io username to challenge.")).queue();
+            if (username == null) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must register generals.io username to challenge" +
+                                                                    ".")).queue();
                 return;
             }
             final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
-            if(msg.getMember().getRoles().contains(msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode)))) {
+            if (msg.getMember().getRoles().contains(msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode)))) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You can't challenge yourself.")).queue();
                 return;
             }
             Database.Hill.Challenge[] terms = Database.Hill.lastTerms(mode, 1);
-            if(terms.length == 0 
-                    && ((mode == Constants.Hill.GoTH && tempGoth == 0) 
-                            || (mode == Constants.Hill.AoTH && tempAoth1 == 0))) {
-                switch(mode) {
-                case GoTH:
-                    tempGoth = msg.getAuthor().getIdLong();
-                    msg.getGuild().addRoleToMember(tempGoth, msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.GoTH))).queue();
-                    msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
-                            .setTitle("Temporary GoTH set")
-                            .setDescription(username + " is the temporary GoTH. They will not be recorded in the hall of fame until they win a challenge.")
-                            .build()).queue();
-                    break;
+            if (terms.length == 0
+                && ((mode == Constants.Hill.GoTH && tempGoth == 0)
+                    || (mode == Constants.Hill.AoTH && tempAoth1 == 0))) {
+                switch (mode) {
+                    case GoTH:
+                        tempGoth = msg.getAuthor().getIdLong();
+                        msg.getGuild().addRoleToMember(tempGoth,
+                                msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.GoTH))).queue();
+                        msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
+                                .setTitle("Temporary GoTH set")
+                                .setDescription(username + " is the temporary GoTH. They will not be recorded in the hall of fame until they win a challenge.")
+                                .build()).queue();
+                        break;
                 case AoTH:
                     tempAoth1 = msg.getAuthor().getIdLong();
                     tempAoth2 = partnerId;
@@ -1389,11 +1395,11 @@ public class Commands extends ListenerAdapter {
                 case GoTH:
                     msg.getChannel().sendMessage(new MessageBuilder().append("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.GoTH) + ">")
                             .setEmbeds(new EmbedBuilder()
-                                .setColor(Constants.Colors.PRIMARY)
-                                .setTitle("New GoTH Challenge")
-                                .setDescription(username + " (" + msg.getAuthor().getAsMention() 
-                                        + ") challenges you, best of " + bestof
-                                        + ". Do you accept?")
+                                    .setColor(Constants.Colors.PRIMARY)
+                                    .setTitle("New GoTH Challenge")
+                                    .setDescription(username + " (" + msg.getAuthor().getAsMention()
+                                                    + ") challenges you, best of " + bestof
+                                                    + ". Do you accept?")
                                 .build())
                             .setActionRows(ActionRow.of(List.of(
                                 Button.success("goth-accept-" + msg.getAuthor().getIdLong() + "-" + bestof, "Accept"),
@@ -1404,25 +1410,25 @@ public class Commands extends ListenerAdapter {
                 case AoTH:
                     msg.getChannel().sendMessage(new MessageBuilder().append("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.AoTH) + ">")
                             .setEmbeds(new EmbedBuilder()
-                                .setColor(Constants.Colors.PRIMARY)
-                                .setTitle("New AoTH Challenge")
-                                .setDescription(username + " (" + msg.getAuthor().getAsMention() 
-                                        + ") and " + partner + " (<@" + partnerId + ">)"  
-                                        + " challenge you, best of " + bestof
-                                        + ". Do you accept?")
+                                    .setColor(Constants.Colors.PRIMARY)
+                                    .setTitle("New AoTH Challenge")
+                                    .setDescription(username + " (" + msg.getAuthor().getAsMention()
+                                                    + ") and " + partner + " (<@" + partnerId + ">)"
+                                                    + " challenge you, best of " + bestof
+                                                    + ". Do you accept?")
                                 .build())
                             .setActionRows(ActionRow.of(List.of(
-                                Button.success("aoth-accept-" + msg.getAuthor().getIdLong() 
-                                        + "-" + partnerId + "-" + bestof, "Accept"),
-                                Button.danger("aoth-reject-" + msg.getAuthor().getIdLong() 
-                                        + "-" + partnerId, "Reject")
+                                    Button.success("aoth-accept-" + msg.getAuthor().getIdLong()
+                                                   + "-" + partnerId + "-" + bestof, "Accept"),
+                                    Button.danger("aoth-reject-" + msg.getAuthor().getIdLong()
+                                                  + "-" + partnerId, "Reject")
                             )))
                             .build()).queue();
                     break;
                 }
             }
         }
-        
+
         public static void handleButtonClick(ButtonClickEvent event) {
             if(event.getComponentId().startsWith("goth-accept")) {
                 final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
@@ -1458,7 +1464,7 @@ public class Commands extends ListenerAdapter {
                             )))
                             .build()).queue((inx) -> {
                                 inx.retrieveOriginal().queue(m -> {
-                                    challenge.challengeMsg = m; 
+                                    challenge.challengeMsg = m;
                                 });
                             });
                 }
@@ -1472,15 +1478,16 @@ public class Commands extends ListenerAdapter {
                 String challengerName = Database.getGeneralsName(challenger);
                 event.getMessage().editMessage(new MessageBuilder(event.getMessage()).setActionRows().build()).queue();
                 if(challengerName == null) {
-                    event.getChannel().sendMessageEmbeds(Utils.error(event.getMessage(), "Challenge already invalid: challenger doesn't exist.")).queue();
+                    event.getChannel().sendMessageEmbeds(Utils.error(event.getMessage(), "Challenge already invalid: " +
+                                                                                         "challenger doesn't exist.")).queue();
                     return;
                 }
                 event.reply(new MessageBuilder().append("<@" + challenger + ">")
                         .setEmbeds(new EmbedBuilder()
                                 .setColor(Constants.Colors.ERROR)
                                 .setTitle("GoTH Challenge Rejected")
-                                .setDescription("The GoTH didn't want to play against " 
-                                + challengerName + ".")
+                                .setDescription("The GoTH didn't want to play against "
+                                                + challengerName + ".")
                                 .build())
                         .build()).queue();
             } else if(event.getComponentId().startsWith("aoth-accept")) {
@@ -1519,7 +1526,7 @@ public class Commands extends ListenerAdapter {
                             )))
                             .build()).queue((inx) -> {
                                 inx.retrieveOriginal().queue(m -> {
-                                    challenge.challengeMsg = m; 
+                                    challenge.challengeMsg = m;
                                 });
                             });
                 }
@@ -1542,8 +1549,8 @@ public class Commands extends ListenerAdapter {
                         .setEmbeds(new EmbedBuilder()
                                 .setColor(Constants.Colors.ERROR)
                                 .setTitle("AoTH Challenge Rejected")
-                                .setDescription("The AoTH didn't want to play against " 
-                                + challengerName1 + " and " + challengerName2 + ".")
+                                .setDescription("The AoTH didn't want to play against "
+                                                + challengerName1 + " and " + challengerName2 + ".")
                                 .build())
                         .build()).queue();
             } else if (event.getComponentId().equals("goth-score")) {
@@ -1555,7 +1562,7 @@ public class Commands extends ListenerAdapter {
                 event.getMessage().editMessage(new MessageBuilder(event.getMessage()).setActionRows().build()).queue();
             }
         }
-        
+
         public static void showGothHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
             // TODO: test hall of fame
             if(args.length > 2) {
@@ -1566,17 +1573,18 @@ public class Commands extends ListenerAdapter {
             EmbedBuilder hofEmbed = new EmbedBuilder()
                     .setTitle("GoTH Hall of Fame");
             if(goths.length == 0) {
-                hofEmbed.setDescription("No GoTHs yet! Be the first by accepting and winning a challenge (!challenge).");
+                hofEmbed.setDescription("No GoTHs yet! Be the first by accepting and winning a challenge (!challenge)" +
+                                        ".");
             } else {
                 for(int a = 0; a < goths.length; a++) {
                     String gothName = Database.getGeneralsName(Long.parseLong(goths[a].opp[0]));
                     if(gothName == null) {
                         gothName = "Unknown";
                     }
-                    hofEmbed.appendDescription("\n#" + (a + 1) + ": " 
-                            + gothName
-                            + "(<@" + goths[a].opp[0] + ">)");
-                    int terms = Database.Hill.get(Constants.Hill.GoTH, goths[a].timestamp, 
+                    hofEmbed.appendDescription("\n#" + (a + 1) + ": "
+                                               + gothName
+                                               + "(<@" + goths[a].opp[0] + ">)");
+                    int terms = Database.Hill.get(Constants.Hill.GoTH, goths[a].timestamp,
                             a + 1 < goths.length ? goths[a + 1].timestamp : Long.MAX_VALUE).length;
                     String startDate = Instant.ofEpochMilli(goths[a].timestamp).toString();
                     if(startDate.indexOf('T') != -1) {
@@ -1598,15 +1606,15 @@ public class Commands extends ListenerAdapter {
                             suffix = "th";
                             break;
                         }
-                        hofEmbed.appendDescription("\n\t" + terms + suffix 
-                                + " term, started "
-                                + startDate + " (current)");
+                        hofEmbed.appendDescription("\n\t" + terms + suffix
+                                                   + " term, started "
+                                                   + startDate + " (current)");
                     } else {
                         terms--;
                         String endDate = Instant.ofEpochMilli(goths[a + 1].timestamp).toString();
                         if(endDate.indexOf('T') != -1) {
                             endDate = endDate.substring(0, endDate.indexOf('T'));
-                        } 
+                        }
                         hofEmbed.appendDescription("\n\t" + terms + " term"
                                 + (terms > 1 ? "s" : "")
                                 + ", "
@@ -1616,16 +1624,10 @@ public class Commands extends ListenerAdapter {
             }
             msg.getChannel().sendMessageEmbeds(hofEmbed.build()).queue();
         }
-        
+
         public static void showGothRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
             // TODO: implement !goth results
-            
-        }
-    }
 
-    public void onButtonClick(ButtonClickEvent event) {
-        if (event.getComponentId().startsWith("goth-") || event.getComponentId().startsWith("aoth-")) {
-            Hill.handleButtonClick(event);
         }
     }
 }
