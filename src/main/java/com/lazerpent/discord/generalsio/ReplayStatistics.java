@@ -45,7 +45,7 @@ public class ReplayStatistics {
     public static final Map<String, List<ReplayResult>> storedReplays = new HashMap<>();
     public static StandardChartTheme theme = (StandardChartTheme) StandardChartTheme.createJFreeTheme();
     public static Semaphore replayRequestSem = new Semaphore(250);
-    public static Semaphore replayIndividualSem = new Semaphore(400);
+    public static Semaphore replayIndividualSem = new Semaphore(250);
 
     static {
         try {
@@ -395,65 +395,53 @@ public class ReplayStatistics {
 
     public static Map<String, Pair<Integer, Integer>> processRecent2v2Replays(String username) {
         Map<String, Pair<Integer, Integer>> res = new ConcurrentHashMap<>();
-        Instant cutoff = null;
-        int curOffset = 0;
-        boolean terminated = false;
-        while (!terminated) {
-            List<ReplayResult> replayResults = getReplays(username, 200, curOffset);
-            if(replayResults.size() == 0) {
-                terminated = true;
-                break;
-            }
-            if (cutoff == null) {
-                cutoff = Instant.ofEpochMilli(replayResults.get(0).started - 24L * 60L * 60L * 1000L);
-            }
-            if(Instant.ofEpochMilli(replayResults.get(replayResults.size() - 1).started).isBefore(cutoff)) {
-                terminated = true;
-            }
-            replayResults = replayResults.parallelStream()
-                    .filter((r) -> r.type.equals("2v2") || r.type.equals("custom") && r.ranking.length == 4)
-                    .toList();
-            convertReplayFiles(replayResults).entrySet().stream()
-                    .forEach((entry) -> {
-                        String winner = entry.getKey().ranking[0].name;
-                        if (winner == null) return;
-                        Replay curReplay= entry.getValue();
-                        if (curReplay.teams != null) {
-                            int winIdx = 0;
-                            int playerIdx = 0;
-                            for (int a = 0; a < curReplay.usernames.length; a++) {
-                                if (curReplay.usernames[a].equals(winner)) {
-                                    winIdx = a;
-                                }
-                                if (curReplay.usernames[a].equals(username)) {
-                                    playerIdx = a;
-                                }
-                            }
-                            String partner = "";
-                            Set<Integer> s = new HashSet<>();
-                            boolean not2v2 = false;
-                            for (int a = 0; a < curReplay.teams.length; a++) {
-                                if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
-                                    if (!partner.equals("")) {
-                                        not2v2 = true;
-                                        break;
-                                    }
-                                    partner = curReplay.usernames[a];
-                                }
-                                s.add(curReplay.teams[a]);
-                            }
-                            if (not2v2 || s.size() != 2 || partner.equals("")) return;
-                            res.merge(partner,
-                                    Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                            0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                            a.getRight() + b.getRight()));
-                            res.merge(username,
-                                    Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                            0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                            a.getRight() + b.getRight()));
-                        }
-                    });
+        List<ReplayResult> replayResults = getReplays(username, 200, 0);
+        if(replayResults.size() == 0) {
+            return new HashMap<>();
         }
+        replayResults = replayResults.parallelStream()
+                .filter((r) -> r.type.equals("2v2") || r.type.equals("custom") && r.ranking.length == 4)
+                .toList();
+        convertReplayFiles(replayResults).entrySet().stream()
+                .forEach((entry) -> {
+                    String winner = entry.getKey().ranking[0].name;
+                    if (winner == null) return;
+                    Replay curReplay= entry.getValue();
+                    if (curReplay.teams != null) {
+                        int winIdx = 0;
+                        int playerIdx = 0;
+                        for (int a = 0; a < curReplay.usernames.length; a++) {
+                            if (curReplay.usernames[a].equals(winner)) {
+                                winIdx = a;
+                            }
+                            if (curReplay.usernames[a].equals(username)) {
+                                playerIdx = a;
+                            }
+                        }
+                        String partner = "";
+                        Set<Integer> s = new HashSet<>();
+                        boolean not2v2 = false;
+                        for (int a = 0; a < curReplay.teams.length; a++) {
+                            if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
+                                if (!partner.equals("")) {
+                                    not2v2 = true;
+                                    break;
+                                }
+                                partner = curReplay.usernames[a];
+                            }
+                            s.add(curReplay.teams[a]);
+                        }
+                        if (not2v2 || s.size() != 2 || partner.equals("")) return;
+                        res.merge(partner,
+                                Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                        0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
+                                        a.getRight() + b.getRight()));
+                        res.merge(username,
+                                Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                        0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
+                                        a.getRight() + b.getRight()));
+                    }
+                });
         return res;
     }
 
