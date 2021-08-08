@@ -3,6 +3,8 @@ package com.lazerpent.discord.generalsio;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 /**
@@ -157,6 +159,22 @@ public class Replay {
             settings = StreamSupport.stream(arr.get(idx).getAsJsonArray().spliterator(), false)
                     .mapToInt(JsonElement::getAsInt).toArray();
         }
+    }
+    
+    public boolean onSameTeam(String... players) {
+        Set<Integer> teamIdx = new HashSet<Integer>();
+        for(String u : players) {
+            boolean found = false;
+            for(int a = 0; a < usernames.length; a++) {
+                if(usernames[a].equals(u)) {
+                    teamIdx.add(teams[a]);
+                    found = true;
+                    break;
+                }
+            }
+            if(!found) teamIdx.add(-1);
+        }
+        return (teamIdx.size() == 1 && !teamIdx.contains(-1));
     }
 
     /**

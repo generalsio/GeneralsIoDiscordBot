@@ -4,8 +4,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -49,15 +51,12 @@ public class Hill {
     public static final int CONCURRENT_CHALLENGE_LIMIT = 3;
     public static List<Hill.ChallengeData> curGothChallenges = new ArrayList<>();
     public static List<Hill.ChallengeData> curAothChallenges = new ArrayList<>();
-    public static long tempGoth;
-    public static long tempAoth1;
-    public static long tempAoth2;
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
 
     public static void init() {
         EXECUTOR.execute(() -> {
             while (true) {
-                checkGothScores();
+                checkScores(Constants.Hill.GoTH);
                 try {
                     Thread.sleep(90_000);
                 } catch (InterruptedException e) {
@@ -67,7 +66,7 @@ public class Hill {
         });
         EXECUTOR.execute(() -> {
             while (true) {
-                checkAothScores();
+                checkScores(Constants.Hill.AoTH);
                 try {
                     Thread.sleep(120_000);
                 } catch (InterruptedException e) {
@@ -76,160 +75,118 @@ public class Hill {
             }
         });
     }
-
-    private static void checkGothScores() {
+    private static void checkScores(Constants.Hill mode) {
         Database.Hill.Challenge[] terms = Database.Hill.lastTerms(Constants.Hill.GoTH, 1);
-        long goth = tempGoth;
-        if (terms.length != 0)
-            goth = terms[0].opp[0];
-        if (goth != 0) {
-            String gothName = Database.getGeneralsName(goth);
-            List<String> replayIDs = new ArrayList<>();
-            List<ReplayResult> replays = ReplayStatistics.getReplays(gothName, 1000);
-            Collections.reverse(replays);
-            synchronized (curGothChallenges) {
-                boolean shouldClear = false;
-                for (Hill.ChallengeData cdata : curGothChallenges) {
-                    String opponent = Database.getGeneralsName(cdata.opp[0]);
-
-                    Database.Hill.Challenge c = new Database.Hill.Challenge();
-                    c.timestamp = cdata.timestamp;
-                    c.type = Constants.Hill.GoTH;
-                    c.opp = cdata.opp;
-                    c.scoreInc = 0;
-                    c.scoreOpp = 0;
-                    for (ReplayResult replay : replays) {
-                        if (c.scoreInc == (cdata.length + 1) / 2 || c.scoreOpp == (cdata.length + 1) / 2) {
-                            break;
-                        }
-                        if (replay.started < cdata.timestamp) {
-                            continue;
-                        }
-                        if (replay.ranking.length == 2 && replay.hasPlayer(opponent) && replay.hasPlayer(gothName)) {
-                            if (replay.ranking[0].name.equals(gothName)) {
-                                c.scoreInc += 1;
-                            } else {
-                                c.scoreOpp += 1;
-                            }
-                            replayIDs.add(replay.id);
-                        }
-                    }
-                    c.replays = replayIDs.toArray(new String[0]);
+        List<ChallengeData> curChallenges = switch(mode) {
+        case GoTH -> curGothChallenges;
+        case AoTH -> curAothChallenges;
+        };
+        if (terms.length == 0 || curChallenges.size() == 0)
+            return;
+        long[] incumbent = terms[0].opp;
+        List<String> replayIDs = new ArrayList<>();
+        List<ReplayResult> replays = ReplayStatistics.getReplays(Database.getGeneralsName(incumbent[0]), 1000);
+        Map<ReplayStatistics.ReplayResult, Replay> replayMap = null;
+        if(mode == Constants.Hill.AoTH) {
+            replayMap = ReplayStatistics.convertReplayFiles(replays);
+        }
+        Collections.reverse(replays);
+        synchronized (curChallenges) {
+            boolean shouldClear = false;
+            for (int challengeIdx = curChallenges.size() - 1; challengeIdx >= 0; challengeIdx--) {
+                Hill.ChallengeData cdata = curChallenges.get(challengeIdx);
+                Database.Hill.Challenge c = new Database.Hill.Challenge();
+                c.timestamp = cdata.timestamp;
+                c.type = mode;
+                c.opp = cdata.opp;
+                c.scoreInc = 0;
+                c.scoreOpp = 0;
+                for (ReplayResult replay : replays) {
                     if (c.scoreInc == (cdata.length + 1) / 2 || c.scoreOpp == (cdata.length + 1) / 2) {
-                        cdata.challengeMsg.replyEmbeds(logScore(cdata.challengeMsg.getGuild(), c,
-                                Constants.Hill.GoTH)).queue();
-                        if (c.scoreOpp > c.scoreInc) {
-                            shouldClear = true;
-                            break;
-                        }
+                        break;
                     }
-                }
-                if (shouldClear) {
-                    curGothChallenges.clear();
-                }
-            }
-        }
-    }
-
-    private static void checkAothScores() {
-        Database.Hill.Challenge[] terms = Database.Hill.lastTerms(Constants.Hill.AoTH, 1);
-        long aoth1 = tempAoth1;
-        long aoth2 = tempAoth2;
-        if (terms.length != 0) {
-            aoth1 = terms[0].opp[0];
-            aoth2 = terms[0].opp[1];
-        }
-        if (aoth1 != 0 && aoth2 != 0) {
-            String aothName1 = Database.getGeneralsName(aoth1);
-            String aothName2 = Database.getGeneralsName(aoth2);
-            List<String> replayIDs = new ArrayList<>();
-            List<ReplayStatistics.ReplayResult> replays = ReplayStatistics.getReplays(aothName1, 1000);
-            Collections.reverse(replays);
-            Map<ReplayStatistics.ReplayResult, Replay> replayMap = ReplayStatistics.convertReplayFiles(replays);
-            synchronized (curAothChallenges) {
-                boolean shouldClear = false;
-                for (Hill.ChallengeData cdata : curAothChallenges) {
-                    String opponent1 = Database.getGeneralsName(cdata.opp[0]);
-                    String opponent2 = Database.getGeneralsName(cdata.opp[1]);
-
-                    Database.Hill.Challenge c = new Database.Hill.Challenge();
-                    c.timestamp = cdata.timestamp;
-                    c.type = Constants.Hill.GoTH;
-                    c.opp = cdata.opp;
-                    c.scoreInc = 0;
-                    c.scoreOpp = 0;
-                    for (ReplayStatistics.ReplayResult replay : replays) {
-                        if (c.scoreInc == (cdata.length + 1) / 2 || c.scoreOpp == (cdata.length + 1) / 2) {
-                            break;
-                        }
-                        if (replay.started < cdata.timestamp) {
-                            continue;
-                        }
-                        Replay replayFile = replayMap.get(replay);
-                        if (replay.ranking.length == 4
-                            && replay.hasPlayer(opponent1)
-                            && replay.hasPlayer(opponent2)
-                            && replay.hasPlayer(aothName1)
-                            && replay.hasPlayer(aothName2)
-                            && replayFile.teams != null) {
-                            boolean hasAothTeam = false;
-                            boolean hasOppTeam = false;
-                            boolean hasCrossTeam = false;
-                            for (int a = 0; a < replayFile.teams.length; a++) {
-                                for (int b = a + 1; b < replayFile.teams.length; b++) {
-                                    if (replayFile.teams[a] == replayFile.teams[b]) {
-                                        String u1 = replayFile.usernames[a];
-                                        String u2 = replayFile.usernames[b];
-                                        if (u1.equals(aothName1) && u2.equals(aothName2)
-                                            || u1.equals(aothName2) && u2.equals(aothName1)) {
-                                            hasAothTeam = true;
-                                        } else if (u1.equals(opponent1) && u2.equals(opponent2)
-                                                   || u1.equals(opponent2) && u2.equals(opponent1)) {
-                                            hasOppTeam = true;
-                                        } else {
-                                            hasCrossTeam = true;
-                                        }
-                                    }
-                                }
+                    if (replay.started < cdata.timestamp) {
+                        continue;
+                    }
+                    if (replay.ranking.length == 2 * mode.teamSize) {
+                        boolean shouldSkip = false;
+                        for(long challenger : cdata.opp) {
+                            if(!replay.hasPlayer(Database.getGeneralsName(challenger))) {
+                                shouldSkip = true;
+                                break;
                             }
-                            if (!hasAothTeam || !hasOppTeam || hasCrossTeam) {
+                        }
+                        if(shouldSkip) continue;
+                        for(long xoth : incumbent) {
+                            if(!replay.hasPlayer(Database.getGeneralsName(xoth))) {
+                                shouldSkip = true;
+                                break;
+                            }
+                        }
+                        if(shouldSkip) continue;
+                        if(replayMap != null) {
+                            Replay replayFile = replayMap.get(replay);
+                            if(replayFile.teams == null) {
                                 continue;
                             }
-                            if (replay.ranking[0].name.equals(aothName1) || replay.ranking[0].name.equals(aothName2)) {
-                                c.scoreInc += 1;
-                            } else {
-                                c.scoreOpp += 1;
+                            if(!replayFile.onSameTeam(Arrays.stream(cdata.opp)
+                                    .mapToObj(Database::getGeneralsName)
+                                    .toArray(String[]::new))
+                                || !replayFile.onSameTeam(Arrays.stream(incumbent)
+                                        .mapToObj(Database::getGeneralsName)
+                                        .toArray(String[]::new))) {
+                                continue;
                             }
-                            replayIDs.add(replay.id);
+                            if(replayFile.onSameTeam(Database.getGeneralsName(cdata.opp[0]), 
+                                    Database.getGeneralsName(incumbent[0]))) {
+                                continue;
+                            }
                         }
+                        boolean incWon = false;
+                        for(long xoth : incumbent) {
+                            if (replay.ranking[0].name.equals(Database.getGeneralsName(xoth))) {
+                                incWon = true;
+                                break;
+                            }
+                        }
+                        if(incWon) {
+                            c.scoreInc++;
+                        } else {
+                            c.scoreOpp++;
+                        }
+                        replayIDs.add(replay.id);
                     }
-                    c.replays = replayIDs.toArray(new String[0]);
-                    if (c.scoreInc == (cdata.length + 1) / 2 || c.scoreOpp == (cdata.length + 1) / 2) {
+                }
+                c.replays = replayIDs.toArray(new String[0]);
+                if (c.scoreInc == (cdata.length + 1) / 2 || c.scoreOpp == (cdata.length + 1) / 2) {
+                    curChallenges.remove(challengeIdx);
+                    try {
                         cdata.challengeMsg.replyEmbeds(logScore(cdata.challengeMsg.getGuild(), c,
-                                Constants.Hill.AoTH)).queue();
-                        if (c.scoreOpp > c.scoreInc) {
-                            shouldClear = true;
-                            break;
-                        }
+                                mode)).queue();
+                    } catch(Exception e) {
+                        cdata.challengeMsg.replyEmbeds(Utils.error(cdata.challengeMsg, e.getMessage()));
+                    }
+                    if (c.scoreOpp > c.scoreInc) {
+                        shouldClear = true;
+                        break;
                     }
                 }
-                if (shouldClear) {
-                    curAothChallenges.clear();
-                }
+            }
+            if (shouldClear) {
+                curChallenges.clear();
             }
         }
     }
 
     private static MessageEmbed scoreEmbed(Database.Hill.Challenge c, Constants.Hill mode) {
-        long oppMember = c.opp[0];
-        String oppName = Database.getGeneralsName(oppMember);
+        long[] oppMember = c.opp;
         EmbedBuilder embed = new EmbedBuilder()
-                .setTitle("GoTH Results")
+                .setTitle(mode.toString() + " Results")
                 .setColor(Constants.Colors.PRIMARY)
                 .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc
                                                            + "**-" + c.scoreOpp :
                         c.scoreInc + "-**" + c.scoreOpp + "**")
-                                + " vs " + oppName + "(<@" + oppMember + ">)");
+                                + " vs " + getOpponentName(oppMember, true));
 
         if (c.replays.length != 0) {
             StringBuilder sb = new StringBuilder();
@@ -245,38 +202,20 @@ public class Hill {
 
     // Logs the results of a new GoTH challenge. Updates the database, updates the guild roles, and returns a
     // MessageEmbed.
-    private static MessageEmbed logScore(Guild guild, Database.Hill.Challenge c, Constants.Hill mode) {
+    private static MessageEmbed logScore(Guild guild, Database.Hill.Challenge c, Constants.Hill mode) throws Exception {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(guild.getIdLong());
 
         if (c.scoreInc < c.scoreOpp) {
             Database.Hill.Challenge[] terms = Database.Hill.lastTerms(mode, 1);
-            // remove GoTH role from incumbent
-            long inc1 = 0;
-            long inc2 = 0;
-            if (mode == Constants.Hill.AoTH) {
-                inc1 = tempAoth1;
-                inc2 = tempAoth2;
-            } else {
-                inc1 = tempGoth;
+            if (terms.length == 0) {
+                throw new Exception("Could not retrieve information for previous " + mode.toString() + ".");
             }
-            if (terms.length != 0) {
-                inc1 = terms[0].opp[0];
-                if (mode == Constants.Hill.AoTH) {
-                    inc2 = terms[0].opp[1];
-                }
+            long[] incumbent = terms[0].opp;
+            for(long inc : incumbent) {
+                guild.removeRoleFromMember(inc, guild.getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
             }
-            if (inc1 != 0) {
-                guild.removeRoleFromMember(inc1, guild.getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
-                if (mode == Constants.Hill.AoTH) {
-                    guild.removeRoleFromMember(inc2, guild.getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
-                }
-            }
-
-            // add GoTH role to new message
-            guild.addRoleToMember(c.opp[0], guild.getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
-            if (mode == Constants.Hill.AoTH) {
-                guild.addRoleToMember(c.opp[1],
-                        guild.getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
+            for(long challenger : c.opp) {
+                guild.addRoleToMember(challenger, guild.getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
             }
         }
 
@@ -310,16 +249,54 @@ public class Hill {
         }
     }
     
-    @Command(name = {"goth"}, args = {"id?"}, desc = "Show information about the given term or challenge", perms
-            = Constants.Perms.USER)
-    public static void handleGoth(@NotNull Commands self, @NotNull Message msg, String[] args) {
+    @Command(name = {"settemp"}, args = {"goth | aoth", "@player", "@partner?"}, desc = "", perms = Constants.Perms.MOD)
+    public static void handleSetTemp(@NotNull Commands self, @NotNull Message msg, String[] args) {
         if (args.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify a subcommand.")).queue();
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
             return;
         }
-        if (args[1].equalsIgnoreCase("top")) {
-            showHallOfFame(self, msg, args);
+        Constants.Hill mode = switch(args[1].toLowerCase()) {
+        case "goth" -> Constants.Hill.GoTH;
+        case "aoth" -> Constants.Hill.AoTH;
+        default -> null;
+        };
+        if(mode == null) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
+            return;
         }
+        if(msg.getMentionedMembers().size() != mode.teamSize) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify " + mode.teamSize + " users.")).queue();
+            return;
+        }
+        long[] tempXoth = msg.getMentionedMembers().stream()
+                .mapToLong(Member::getIdLong)
+                .sorted()
+                .toArray();
+        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+        for(Member formerXoth : msg.getGuild().getMembersWithRoles(msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode)))) {
+            msg.getGuild().removeRoleFromMember(formerXoth,
+                    msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
+        }
+        for(long challenger : tempXoth) {
+            msg.getGuild().addRoleToMember(challenger,
+                    msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode))).queue();
+        }
+        Challenge c = new Challenge();
+        c.timestamp = Instant.now().toEpochMilli();
+        c.type = mode;
+        c.scoreInc = 0;
+        c.scoreOpp = 1;
+        c.opp = tempXoth;
+        c.replays = new String[]{ "temp" };
+        Database.Hill.add(c);
+        msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
+                .setTitle("Temporary " + mode.toString() + " set")
+                .setDescription(String.format("%s %s the temporary %s. They will not be recorded in the " +
+                                "hall of fame until they win a challenge.",
+                                getOpponentName(tempXoth, false),
+                                (tempXoth.length == 1 ? "is" : "are"),
+                                mode.toString()))
+                .build()).queue();
     }
 
     @Command(name = {"challenge"}, args = {"goth | aoth", "bestof", "@partner?"}, desc = "Challenge the current " +
@@ -331,17 +308,14 @@ public class Hill {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
             return;
         }
-        Constants.Hill mode;
-        switch (args[1].toLowerCase()) {
-            case "goth":
-                mode = Constants.Hill.GoTH;
-                break;
-            case "aoth":
-                mode = Constants.Hill.AoTH;
-                break;
-            default:
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
-                return;
+        Constants.Hill mode = switch(args[1].toLowerCase()) {
+        case "goth" -> Constants.Hill.GoTH;
+        case "aoth" -> Constants.Hill.AoTH;
+        default -> null;
+        };
+        if(mode == null) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
+            return;
         }
         if (args.length < 3) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify number of games in set (best of x " +
@@ -371,103 +345,56 @@ public class Hill {
                                                                 "set.")).queue();
             return;
         }
-        if (mode == Constants.Hill.AoTH && msg.getMentionedMembers().size() != 1) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify one partner to challenge AoTH.")).queue();
-            return;
-        }
-        String partner = null;
-        long partnerId = 0;
         if (mode == Constants.Hill.AoTH) {
-            partnerId = msg.getMentionedMembers().get(0).getIdLong();
-            partner = Database.getGeneralsName(partnerId);
-            if (partnerId == msg.getAuthor().getIdLong()) {
+            if(msg.getMentionedMembers().size() != 1) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify one partner to challenge AoTH.")).queue();
+                return;
+            } else if(msg.getMentionedMembers().get(0).getIdLong() == msg.getAuthor().getIdLong()) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You can't partner with yourself, you silly, " +
-                                                                    "lonely fool.")).queue();
+                        "lonely fool.")).queue();
+                return;
+            } else if (Database.getGeneralsName(msg.getMentionedMembers().get(0).getIdLong()) == null) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Partner must register generals.io username to " +
+                        "challenge AoTH.")).queue();
                 return;
             }
         }
-        String username = Database.getGeneralsName(msg.getAuthor().getIdLong());
-        if (partner == null && mode == Constants.Hill.AoTH) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Partner must register generals.io username to " +
-                                                                "challenge AoTH.")).queue();
-            return;
-        }
-        if (username == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must register generals.io username to challenge" +
-                                                                ".")).queue();
-            return;
-        }
+        long[] challenger = switch(mode) {
+        case GoTH -> new long[]{ msg.getAuthor().getIdLong() };
+        case AoTH -> new long[]{ msg.getAuthor().getIdLong(), msg.getMentionedMembers().get(0).getIdLong() };
+        };
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
         if (msg.getMember().getRoles().contains(msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode)))) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You can't challenge yourself.")).queue();
             return;
         }
-        Database.Hill.Challenge[] terms = Database.Hill.lastTerms(mode, 1);
-        if (terms.length == 0
-            && ((mode == Constants.Hill.GoTH && tempGoth == 0)
-                || (mode == Constants.Hill.AoTH && tempAoth1 == 0))) {
-            switch (mode) {
-                case GoTH:
-                    tempGoth = msg.getAuthor().getIdLong();
-                    msg.getGuild().addRoleToMember(tempGoth,
-                            msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.GoTH))).queue();
-                    msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
-                            .setTitle("Temporary GoTH set")
-                            .setDescription(username + " is the temporary GoTH. They will not be recorded in the " +
-                                            "hall of fame until they win a challenge.")
-                            .build()).queue();
-                    break;
-                case AoTH:
-                    tempAoth1 = msg.getAuthor().getIdLong();
-                    tempAoth2 = partnerId;
-                    msg.getGuild().addRoleToMember(tempAoth1,
-                            msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.AoTH))).queue();
-                    msg.getGuild().addRoleToMember(tempAoth2,
-                            msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(Constants.Hill.AoTH))).queue();
-                    msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
-                            .setTitle("Temporary AoTH set")
-                            .setDescription(username + " and " + partner + " are the temporary AoTHs. They will " +
-                                            "not be recorded in the hall of fame until they win a challenge.")
-                            .build()).queue();
-                    break;
-            }
+        if (Database.Hill.lastTerms(mode, 1).length == 0) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "There is no sitting "
+                    + mode.toString()
+                    + ". Ask a mod to !settemp you to become the temporary "
+                    + mode.toString() + ".")).queue();
         } else {
-            switch (mode) {
-                case GoTH:
-                    msg.getChannel().sendMessage(new MessageBuilder().append("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.GoTH) + ">")
-                            .setEmbeds(new EmbedBuilder()
-                                    .setColor(Constants.Colors.PRIMARY)
-                                    .setTitle("New GoTH Challenge")
-                                    .setDescription(username + " (" + msg.getAuthor().getAsMention()
-                                                    + ") challenges you, best of " + bestof
-                                                    + ". Do you accept?")
-                                    .build())
-                            .setActionRows(ActionRow.of(List.of(
-                                    Button.success("goth-accept-" + msg.getAuthor().getIdLong() + "-" + bestof,
-                                            "Accept"),
-                                    Button.danger("goth-reject-" + msg.getAuthor().getIdLong(), "Reject")
-                            )))
-                            .build()).queue();
-                    break;
-                case AoTH:
-                    msg.getChannel().sendMessage(new MessageBuilder().append("<@&" + GUILD_INFO.hillRoles.get(Constants.Hill.AoTH) + ">")
-                            .setEmbeds(new EmbedBuilder()
-                                    .setColor(Constants.Colors.PRIMARY)
-                                    .setTitle("New AoTH Challenge")
-                                    .setDescription(username + " (" + msg.getAuthor().getAsMention()
-                                                    + ") and " + partner + " (<@" + partnerId + ">)"
-                                                    + " challenge you, best of " + bestof
-                                                    + ". Do you accept?")
-                                    .build())
-                            .setActionRows(ActionRow.of(List.of(
-                                    Button.success("aoth-accept-" + msg.getAuthor().getIdLong()
-                                                   + "-" + partnerId + "-" + bestof, "Accept"),
-                                    Button.danger("aoth-reject-" + msg.getAuthor().getIdLong()
-                                                  + "-" + partnerId, "Reject")
-                            )))
-                            .build()).queue();
-                    break;
-            }
+            msg.getChannel().sendMessage(new MessageBuilder().append("<@&" + GUILD_INFO.hillRoles.get(mode) + ">")
+                    .setEmbeds(new EmbedBuilder()
+                            .setColor(Constants.Colors.PRIMARY)
+                            .setTitle("New " + mode.toString() + " Challenge")
+                            .setDescription(String.format("%s challenge%s you, best of %d. Do you accept?",
+                                    getOpponentName(challenger, true),
+                                    (challenger.length == 1 ? "s" : ""),
+                                    bestof))
+                            .build())
+                    .setActionRows(ActionRow.of(List.of(
+                            Button.success(String.format("%s-accept-%s-%d",
+                                    mode.toString().toLowerCase(),
+                                    Arrays.stream(challenger).mapToObj(String::valueOf).collect(Collectors.joining("-")),
+                                    bestof),
+                                    "Accept"),
+                            Button.success(String.format("%s-reject-%s",
+                                    mode.toString().toLowerCase(),
+                                    Arrays.stream(challenger).mapToObj(String::valueOf).collect(Collectors.joining("-"))),
+                                    "Reject")
+                    )))
+                    .build()).queue();
         }
     }
 
@@ -530,7 +457,7 @@ public class Hill {
                                 .setTitle(mode.toString() + " Challenge Accepted", 
                                         "https://generals.io/games/" + mode.toString().toLowerCase())
                                 .setDescription("**"
-                                        + incumbentName + " vs. " + challengerName
+                                        + incumbentName + " vs " + challengerName
                                         + (challengeIdx == 0 ? "" : (" #" + (challengeIdx + 1)))
                                         + "**")
                                 .appendDescription("\nBest of " + bestof)
@@ -579,13 +506,15 @@ public class Hill {
                     .build()).queue();
         }
     }
-
-    public static void showHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        if (args.length > 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Too many arguments provided.")).queue();
+    
+    @Command(name = {"halloffame"}, args = {"goth | aoth"}, desc = "Show GoTH or AoTH hall of fame.", perms
+            = Constants.Perms.USER)
+    public static void handleHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
+        if (args.length != 2) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must provide 1 argument.")).queue();
             return;
         }
-        Constants.Hill mode = switch(args[0].toLowerCase()) {
+        Constants.Hill mode = switch(args[1].toLowerCase()) {
         case "goth" -> Constants.Hill.GoTH;
         case "aoth" -> Constants.Hill.AoTH;
         default -> throw new IllegalArgumentException("Unexpected value: " + args[0].toLowerCase());
@@ -600,10 +529,18 @@ public class Hill {
         } else {
             for (int a = 0; a < xoths.length; a++) {
                 String xothName = getOpponentName(xoths[a].opp, true);
-                hofEmbed.appendDescription("\n#" + (a + 1) + ": "
-                                           + xothName);
                 int terms = Database.Hill.get(mode, xoths[a].timestamp,
                         a + 1 < xoths.length ? xoths[a + 1].timestamp : Long.MAX_VALUE).length;
+                if(xoths[a].replays.length == 1 && xoths[a].replays[0].equals("temp")) {
+                    if(a != 0) {
+                        hofEmbed.appendDescription("\n" + mode.toString() + " replaced with " + xothName + ".");
+                    }
+                    terms--;
+                }
+                if(terms == 0) {
+                    continue;
+                }
+                hofEmbed.appendDescription("\n#" + (a + 1) + ": " + xothName);
                 String startDate = Instant.ofEpochMilli(xoths[a].timestamp).toString();
                 if (startDate.indexOf('T') != -1) {
                     startDate = startDate.substring(0, startDate.indexOf('T'));
@@ -636,9 +573,79 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(hofEmbed.build()).queue();
     }
 
-    public static void showGothRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        // TODO: implement !goth results
-
+    @Command(name = {"viewrecord"}, args = {"goth | aoth", "index?"}, 
+            desc = "Show the challenge history of the nth GoTH/AoTH, "
+                    + "or the latest GoTH/AoTH if no index is provided.", 
+            perms = Constants.Perms.USER)
+    public static void handleViewRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
+        if (args.length < 2) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must provide at least 1 argument.")).queue();
+            return;
+        }
+        Constants.Hill mode = switch(args[1].toLowerCase()) {
+        case "goth" -> Constants.Hill.GoTH;
+        case "aoth" -> Constants.Hill.AoTH;
+        default -> null;
+        };
+        if(mode == null) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
+            return;
+        }
+        int goalIdx = -1;
+        if(args.length == 3) {
+            try {
+                goalIdx = Integer.parseInt(args[2]);
+            } catch(NumberFormatException e) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must provide a number for GoTH/AoTH index.")).queue();
+                return;
+            }
+            if(goalIdx <= 0) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must provide a positive number for GoTH/AoTH index.")).queue();
+                return;
+            }
+        }
+        Challenge[] xoths = Database.Hill.firstTerms(mode, Integer.MAX_VALUE);
+        int curIdx = 0;
+        boolean found = false;
+        Challenge[] lastFound = null;
+        for (int a = 0; a < xoths.length; a++) {
+            String xothName = getOpponentName(xoths[a].opp, true);
+            Challenge[] terms = Database.Hill.get(mode, xoths[a].timestamp,
+                    a + 1 < xoths.length ? xoths[a + 1].timestamp : Long.MAX_VALUE);
+            boolean wasTemp = false;
+            if(xoths[a].replays.length == 1 && xoths[a].replays[0].equals("temp")) {
+                wasTemp = true;
+            }
+            if(terms.length == (wasTemp ? 1 : 0)) {
+                continue;
+            }
+            lastFound = terms;
+            if(curIdx == goalIdx) {
+                
+            }
+            curIdx++;
+        }
+        if(goalIdx == -1) {
+            
+        } else if(found) {
+            
+        } else {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Could not find challenges for " 
+                    + mode.toString() + " #" + goalIdx + ".")).queue();
+        }
+    }
+    
+    private static MessageEmbed challengeRecordEmbed(Challenge[] terms, String name, int idx, Constants.Hill mode) {
+        EmbedBuilder recordEmbed = new EmbedBuilder();
+        recordEmbed.setTitle(String.format("Challenges taken by %s, %s #%d",
+                name,
+                mode.toString(),
+                idx));
+        for(Challenge term : terms) {
+            recordEmbed.appendDescription(name + " vs " + getOpponentName(term.opp, false) 
+                + ": " + term.scoreInc + "-" + term.scoreOpp);
+        }
+        return recordEmbed.build();
     }
     
     public static String getOpponentName(long[] opp, boolean includeMentions) {
