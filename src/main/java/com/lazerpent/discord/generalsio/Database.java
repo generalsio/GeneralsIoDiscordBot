@@ -42,7 +42,7 @@ public class Database {
             connection.createStatement().execute(
                     "CREATE TABLE IF NOT EXISTS discord_to_generals (discordId int, generalsName text)");
         } catch (SQLException e) {
-            System.out.println("Error creating table challenges.");
+            System.out.println("Error creating table discord_to_generals.");
             System.out.println(e.getErrorCode());
             e.printStackTrace();
         }
@@ -58,6 +58,19 @@ public class Database {
                     "replays TEXT NOT NULL)");
         } catch (SQLException e) {
             System.out.println("Error creating table challenges.");
+            e.printStackTrace();
+        }
+
+        try {
+            connection.createStatement().execute(
+                    "CREATE TABLE IF NOT EXISTS punishments (username text not null," +
+                    " disable integer default 0 not null)");
+
+            // Also check the unique key row
+            connection.createStatement().execute("CREATE UNIQUE INDEX IF NOT EXISTS punishments_username_uindex " +
+                                                 "on punishments (username)");
+        } catch (SQLException e) {
+            System.out.println("Error creating table punishments.");
             e.printStackTrace();
         }
 
@@ -136,6 +149,69 @@ public class Database {
             e.printStackTrace();
         }
         return true;
+    }
+
+    /**
+     * Adds a provided username to the punishment list. If the user is already in the list
+     * (either as punishment or disable), nothing happens.
+     *
+     * @param username Username to add to the punishment list
+     */
+    public static void addPunishment(String username) {
+        try {
+            PreparedStatement stm = connection.prepareStatement("INSERT OR IGNORE INTO " +
+                                                                "punishments(username) VALUES(?)");
+            stm.setString(1, username);
+            stm.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Adds a provided username to the disable list. If a user is already in the list as a punish only, updates to
+     * disable. If a user is already marked as disable, does nothing.
+     *
+     * @param username Username to add to the disable list
+     */
+    public static void addDisable(String username) {
+        try {
+            PreparedStatement stm = connection.prepareStatement("INSERT OR REPLACE INTO " +
+                                                                "punishments(username, disable) VALUES(?, 1)");
+            stm.setString(1, username);
+            stm.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Updates the two parameter lists with the respective users to punish and disable. This uses pointers, so the lists
+     * passed in are the lists which will get the usernames.
+     *
+     * @param punish  Players to punish ONLY (disable players not included)
+     * @param disable Players to disable
+     */
+    public static void getPunishments(List<String> punish, List<String> disable) {
+        try {
+            final ResultSet resultSet = connection.createStatement().executeQuery("SELECT * from punishments");
+            while (resultSet.next()) {
+                (resultSet.getBoolean("disable") ? disable : punish)
+                        .add(resultSet.getString("username"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Removes all users from the punishment list
+     */
+    public static void clearPunishments() {
+        try {
+            connection.createStatement().execute("DELETE FROM punishments");
+        } catch (SQLException ignored) {
+        }
     }
 
     public static class Hill {
