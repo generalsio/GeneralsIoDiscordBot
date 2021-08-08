@@ -1,18 +1,32 @@
 package com.lazerpent.discord.generalsio;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-import java.util.ArrayList;
-
+import java.io.File;
+import java.io.IOException;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Database {
     private static final Connection connection;
     private static final String DATABASE_TABLE = "discord_to_generals";
 
     static {
+
+        // Validate that this provided DB is valid (if its not then start creating the needed tables)
+        File f = new File("database.db");
+        if (!f.exists()) {
+            System.out.println("Unable to find file database.db, creating empty database.");
+            try {
+                //noinspection ResultOfMethodCallIgnored
+                f.createNewFile();
+            } catch (IOException e) {
+                System.out.println("Error creating database.db");
+                e.printStackTrace();
+            }
+        }
+
         Connection con;
         try {
             con = DriverManager.getConnection("jdbc:sqlite:database.db");
@@ -22,6 +36,32 @@ public class Database {
             System.exit(1);
         }
         connection = con;
+
+        // Start validating the tables
+        try {
+            connection.createStatement().execute(
+                    "CREATE TABLE IF NOT EXISTS discord_to_generals (discordId int, generalsName text)");
+        } catch (SQLException e) {
+            System.out.println("Error creating table challenges.");
+            System.out.println(e.getErrorCode());
+            e.printStackTrace();
+        }
+
+        try {
+            connection.createStatement().execute(
+                    "CREATE TABLE IF NOT EXISTS challenges " +
+                    "(timestamp INT NOT NULL PRIMARY KEY, " +
+                    "type INT NOT NULL, " +
+                    "scoreInc INT NOT NULL, " +
+                    "scoreOpp INT NOT NULL, " +
+                    "opp TEXT NOT NULL, " +
+                    "replays TEXT NOT NULL)");
+        } catch (SQLException e) {
+            System.out.println("Error creating table challenges.");
+            e.printStackTrace();
+        }
+
+        // It is assumed that the correct rows exist, if not then refer to above statements to create correct tables
     }
 
     public static void addDiscordGenerals(long discordId, String generalsName) {
@@ -99,21 +139,11 @@ public class Database {
     }
 
     public static class Hill {
-        private final static String TABLE = "challenges";
         private final static String DEL = "\u001F";
-        // CREATE TABLE challenges (timestamp INT NOT NULL PRIMARY KEY, type INT NOT NULL, scoreInc INT NOT NULL, scoreOpp INT NOT NULL, opp TEXT NOT NULL, replays TEXT NOT NULL);
-        // CREATE TABLE team_names (usernames TEXT NOT NULL, teamName TEXT NOT NULL);
-        public static class Challenge {
-            public long timestamp;
-            public Constants.Hill type;
-            public int scoreInc;
-            public int scoreOpp;
-            public String[] opp;
-            public String[] replays;
-        }
 
         public static long add(Challenge c) {
-            String sql = "INSERT INTO " + TABLE + " (timestamp, type, scoreInc, scoreOpp, opp, replays) VALUES (?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO challenges (timestamp, type, scoreInc, scoreOpp, opp, replays) VALUES (?, ?," +
+                         " ?, ?, ?, ?)";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 int i = 1;
@@ -122,24 +152,46 @@ public class Database {
                 stm.setInt(i++, c.scoreInc);
                 stm.setInt(i++, c.scoreOpp);
                 stm.setString(i++, String.join(DEL, c.opp));
-                stm.setString(i++, String.join(DEL, c.replays));
+                stm.setString(i, String.join(DEL, c.replays));
                 stm.execute();
                 return c.timestamp;
-            } catch(SQLException e) {
+            } catch (SQLException e) {
                 e.printStackTrace();
                 return -1;
             }
         }
 
         public static void delete(long timestamp) {
-            String sql = "DELETE FROM " + TABLE + " WHERE timestamp=?";
+            String sql = "DELETE FROM challenges WHERE timestamp=?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setLong(1, timestamp);
                 stm.execute();
-            } catch(SQLException e) {
+            } catch (SQLException e) {
                 e.printStackTrace();
             }
+        }
+
+        /**
+         * Returns the last `n` challenges where the incumbent lost, ordered from latest to earliest.
+         */
+        public static Challenge[] lastTerms(Constants.Hill type, int n) {
+            String sql = "SELECT * FROM challenges WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp DESC " +
+                         "LIMIT ?";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setInt(2, n);
+                stm.setInt(1, type.id);
+                ResultSet result = stm.executeQuery();
+                List<Challenge> challenges = new ArrayList<>();
+                while (result.next()) {
+                    challenges.add(challengeFromSQL(result));
+                }
+                return challenges.toArray(new Challenge[0]);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return new Challenge[0];
         }
 
         private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
@@ -156,28 +208,12 @@ public class Database {
             return c;
         }
 
-        /** Returns the last `n` challenges where the incumbent lost, ordered from latest to earliest. */ 
-        public static Challenge[] lastTerms(Constants.Hill type, int n) {
-            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp DESC LIMIT ?";
-            try {
-                PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setInt(1, type.id);
-                stm.setInt(2, n);
-                ResultSet result = stm.executeQuery();
-                List<Challenge> challenges = new ArrayList<>();
-                while (result.next()) {
-                    challenges.add(challengeFromSQL(result));
-                }
-                return challenges.toArray(new Challenge[0]);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            return new Challenge[0];
-        }
-
-        /** Returns the first `n` challenges where the incumbent lost, ordered from latest to earliest. */ 
+        /**
+         * Returns the first `n` challenges where the incumbent lost, ordered from latest to earliest.
+         */
         public static Challenge[] firstTerms(Constants.Hill type, int n) {
-            String sql = "SELECT * FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp ASC LIMIT ?";
+            String sql = "SELECT * FROM challenges WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp " +
+                         "LIMIT ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setInt(1, type.id);
@@ -193,10 +229,10 @@ public class Database {
             }
             return new Challenge[0];
         }
-
 
         public static int nthTerm(Constants.Hill type, long timestamp) {
-            String sql = "SELECT COUNT(timestamp) FROM "  + TABLE + " WHERE scoreInc < scoreOpp AND type = ? AND timestamp <= ?";
+            String sql = "SELECT COUNT(timestamp) FROM challenges WHERE scoreInc < scoreOpp AND type = ? AND " +
+                         "timestamp <= ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setInt(1, type.id);
@@ -210,9 +246,12 @@ public class Database {
             return 0;
         }
 
-        /** Returns all challenges from `from` to `to` inclusive, from earliest to latest */
+        /**
+         * Returns all challenges from `from` to `to` inclusive, from earliest to latest
+         */
         public static Challenge[] get(Constants.Hill type, long from, long to) {
-            String sql = "SELECT * FROM " + TABLE + " WHERE timestamp >= ? AND timestamp <= ? AND type = ? ORDER BY timestamp ASC";
+            String sql = "SELECT * FROM challenges WHERE timestamp >= ? AND timestamp <= ? AND type = ? ORDER BY " +
+                         "timestamp";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setLong(1, from);
@@ -228,6 +267,18 @@ public class Database {
                 e.printStackTrace();
             }
             return new Challenge[0];
+        }
+
+        // CREATE TABLE challenges (timestamp INT NOT NULL PRIMARY KEY, type INT NOT NULL, scoreInc INT NOT NULL,
+        // scoreOpp INT NOT NULL, opp TEXT NOT NULL, replays TEXT NOT NULL);
+        // CREATE TABLE team_names (usernames TEXT NOT NULL, teamName TEXT NOT NULL);
+        public static class Challenge {
+            public long timestamp;
+            public Constants.Hill type;
+            public int scoreInc;
+            public int scoreOpp;
+            public String[] opp;
+            public String[] replays;
         }
     }
 }
