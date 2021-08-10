@@ -98,26 +98,37 @@ public class Constants {
     }
 
     public static class Colors {
-        public static Color PRIMARY = new Color(0, 128, 128);
+        public static Color PRIMARY = new Color(52, 152, 219);
         public static Color ERROR = new Color(240, 71, 71);
         public static Color SUCCESS = new Color(67, 181, 129);
     }
 
     public enum Hill {
-        GoTH(0, 1),
-        AoTH(1, 2);
+        GoTH(0, 1, new Color(26, 188, 156)),
+        AoTH(1, 2, new Color(233, 30, 99));
 
-        Hill(int id, int teamSize) {
+        Hill(int id, int teamSize, Color color) {
             this.id = id;
             this.teamSize = teamSize;
+            this.color = color;
         }
 
         public int id;
         public int teamSize;
+        public Color color;
 
         public static Hill fromId(int id) {
             for (Hill mode: Hill.values()) {
                 if (mode.id == id) {
+                    return mode;
+                }
+            }
+            return null;
+        }
+
+        public static Hill fromString(String s) {
+            for (Hill mode: Hill.values()) {
+                if (mode.name().toLowerCase().equals(s.toLowerCase())) {
                     return mode;
                 }
             }

@@ -301,7 +301,7 @@ public class Database {
         }
 
         /**
-         * Returns the first `n` challenges where the incumbent lost, ordered from latest to earliest.
+         * Returns the first `n` challenges where the incumbent lost, ordered from earliest to latest.
          */
         public static Challenge[] firstTerms(Constants.Hill type, int n) {
             String sql = "SELECT * FROM challenges WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp " +
@@ -320,6 +320,28 @@ public class Database {
                 e.printStackTrace();
             }
             return new Challenge[0];
+        }
+
+        /**
+         * Returns the challenges for a given user, ordered from latest to earliest.
+         */
+        public static Challenge[] xothTerms(Constants.Hill type, long[] xoth) {
+            String sql = "SELECT * FROM challenges WHERE scoreInc < scoreOpp AND type = ? AND opp = ? ORDER BY timestamp DESC";
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setInt(1, type.id);
+                stm.setString(2, Arrays.stream(xoth).<String>mapToObj(x -> x+"").collect(Collectors.joining(DEL)));
+                ResultSet result = stm.executeQuery();
+                List<Challenge> challenges = new ArrayList<>();
+                while (result.next()) {
+                    challenges.add(challengeFromSQL(result));
+                }
+                return challenges.toArray(new Challenge[0]);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return new Challenge[0];
+
         }
 
         public static int nthTerm(Constants.Hill type, long timestamp) {
