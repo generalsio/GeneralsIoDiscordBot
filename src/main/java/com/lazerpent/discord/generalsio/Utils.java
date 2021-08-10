@@ -15,6 +15,17 @@ import java.time.Instant;
  */
 public class Utils {
     /**
+     * Creates an error message about the wrong # of args.
+     *
+     * @param msg          Message object containing the user who tried this command
+     * @param expected The # of arguments expected, including the command.
+     * @param found The # of arguments found, including the command.
+     */
+    public static MessageEmbed errorWrongArgs(@NotNull Message msg, int expected, int found) {
+        return error(msg, "Invalid Usage", "Expected " + (expected-1) + " arguments, " + (found-1) + " provided");
+    }
+
+    /**
      * Creates a generic error message with a provided error message (which is put in the embed description)
      *
      * @param msg          Message object containing the user who tried this command
