@@ -218,12 +218,11 @@ public class Hill {
         return scoreEmbed(c, mode);
     }
 
-    @Command(name = {"hdel", "hdelete"}, args = {"goth | aoth", "xoth #", "challenge #"}, desc = "Delete completed AoTH/GoTH challenge", perms =
+    @Command(name = {"hdel", "hdelete"}, args = {"goth | aoth", "challenge #?", "xoth #?"}, desc = "Delete completed AoTH/GoTH challenge", perms =
             Constants.Perms.MOD)
     public static void handleGothDel(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        // TODO: allow removal of single replay from challenge + reviving challenges
-        if (args.length < 4) {
-            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 4, args.length)).queue();
+        if (args.length < 2) {
+            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 2, args.length)).queue();
             return;
         }
 
@@ -233,20 +232,29 @@ public class Hill {
             return;
         }
 
-        int xothN;
-        int challengeN;
+        int xothN = -1;
+        int challengeN = -1;
         try {
-            xothN = Integer.parseInt(args[2]);
-            challengeN = Integer.parseInt(args[3]);
+            if (args.length > 2)
+                challengeN = Integer.parseInt(args[2]);
+            if (args.length > 3)
+                xothN = Integer.parseInt(args[3]);
         } catch (NumberFormatException e) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "trolololol " + e)).queue();
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "" + e)).queue();
             return;
         }
 
-        try {
+        long timestamp1;
+        long timestamp2 = Long.MAX_VALUE;
+        if (xothN == -1) {
+            Challenge[] cs = Database.Hill.lastTerms(mode, 1);
+            if (cs.length == 0) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No " + mode.name() + "s exist")).queue();
+                return;
+            }
+            timestamp1 = cs[0].timestamp;
+        } else {
             Challenge[] cs = Database.Hill.firstTerms(mode, xothN + 1);
-            long timestamp1;
-            long timestamp2 = Long.MAX_VALUE;
             if (cs.length == xothN) {
                 timestamp1 = cs[xothN-1].timestamp;
             } else if (cs.length > xothN) {
@@ -256,17 +264,19 @@ public class Hill {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " #" + xothN + " does not exist")).queue();
                 return;
             }
-            Challenge[] challenges = Database.Hill.get(mode, timestamp1,timestamp2);
-            if (challenges.length < challengeN) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " #" + xothN + "'s challenge #" + challengeN + " does not exist")).queue();
-                return;
-            }
-            Database.Hill.delete(challenges[challengeN].timestamp);
-            msg.getChannel().sendMessageEmbeds(Utils.success(msg, "Challenge Deleted")).queue();
-        } catch (NumberFormatException e) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid challenge ID")).queue();
+        }
+        Challenge[] challenges = Database.Hill.get(mode, timestamp1,timestamp2);
+        if (challengeN != -1 && challenges.length < challengeN || challenges.length == 0) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " #" + xothN + "'s challenge #" + challengeN + " does not exist")).queue();
             return;
         }
+
+        Challenge challenge;
+        if (challengeN == -1) challenge = challenges[challenges.length-1];
+        else challenge = challenges[challengeN];
+
+        Database.Hill.delete(challenge.timestamp);
+        msg.getChannel().sendMessageEmbeds(Utils.success(msg, "Challenge Deleted")).queue();
     }
     
     @Command(name = {"hset", "hreplace"}, args = {"goth | aoth", "@player", "@partner?"}, desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD)
@@ -699,6 +709,13 @@ public class Hill {
             );
 
         msg.getChannel().sendMessageEmbeds(embed.build()).queue();
+    }
+
+    @Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "goth index | mention", "challenge # | mention"}, 
+        desc = "Show the replays of the given goth / challenge number.", 
+        perms = Constants.Perms.USER)
+    public static void handleReplay(@NotNull Commands self, @NotNull Message msg, String[] args) {
+
     }
 
     public static String getOpponentName(long[] opp, boolean mention) {

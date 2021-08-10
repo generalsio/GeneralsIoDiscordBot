@@ -341,7 +341,6 @@ public class Database {
                 e.printStackTrace();
             }
             return new Challenge[0];
-
         }
 
         public static int nthTerm(Constants.Hill type, long timestamp) {
