@@ -8,6 +8,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
 public class Database {
@@ -229,6 +232,121 @@ public class Database {
     public static class Hill {
         private final static String DEL = "\u001F";
 
+        public static class Query {
+            private record Item(String clause, String content, int type, Object value) {}
+
+            private List<Item> items;
+
+            Query() {
+                this.items = new ArrayList<>();
+            }
+
+            public Query type(Constants.Hill type) {
+                this.items.add(new Item("WHERE", "type = ?", Types.INTEGER, type.id));
+                return this;
+            }
+
+            public Query from(long timestamp) {
+                this.items.add(new Item("WHERE", "timestamp >= ?", Types.INTEGER, new Long(timestamp)));
+                return this;
+            }
+
+            public Query to(long timestamp) {
+                this.items.add(new Item("WHERE", "timestamp <= ?", Types.INTEGER, new Long(timestamp)));
+                return this;
+            }
+
+            /** Change in XoTH */
+            public Query change()  {
+                this.items.add(new Item("WHERE", "scoreInc < scoreOpp", 0, null));
+                return this;
+            }
+
+            public Query opp(long[] xoth) {
+                this.items.add(new Item("WHERE", "opp = ?", Types.NVARCHAR, Arrays.stream(xoth).sorted().<String>mapToObj(x -> x+"").collect(Collectors.joining(DEL))));
+                return this;
+            }
+
+            /** "asc" or "desc" */
+            public Query sort(String order) {
+                this.items.add(new Item("ORDER", "BY timestamp " + order.toUpperCase(), 0, null));
+                return this;
+            }
+
+            public Query limit(int n) {
+                this.items.add(new Item("LIMIT", "?", Types.INTEGER, n));
+                return this;
+            }
+
+            private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
+                Challenge c = new Challenge();
+                c.timestamp = result.getLong("timestamp");
+                c.type = Constants.Hill.fromId(result.getInt("type"));
+                c.scoreInc = result.getInt("scoreInc");
+                c.scoreOpp = result.getInt("scoreOpp");
+                c.opp = Arrays.stream(result.getString("opp").split(DEL))
+                        .mapToLong(Long::parseLong)
+                        .toArray();
+                c.replays = result.getString("replays").split(DEL);
+                if (c.replays.length == 1 && c.replays[0].length() == 0) {
+                    c.replays = new String[0];
+                }
+                return c;
+            }
+            
+            public Challenge[] get() {
+                Map<String, List<Item>> itemsBC = new HashMap<>();
+                for (Item item: this.items) {
+                    itemsBC.putIfAbsent(item.clause(), new ArrayList<>());
+                    itemsBC.get(item.clause()).add(item);
+                }
+
+                String sql = "SELECT * FROM challenges";
+                List<Item> values = new ArrayList<>();
+                sql += " WHERE " + itemsBC.get("WHERE").stream().map(i -> i.content()).collect(Collectors.joining(" AND "));
+                for (Item item: itemsBC.get("WHERE")) {
+                    values.add(item);
+                }
+                for (Map.Entry<String, List<Item>> entry: itemsBC.entrySet()) {
+                    if (entry.getKey().equals("WHERE")) continue;
+                    sql += " " + entry.getKey() + " " + entry.getValue().get(0).content();
+                    for (Item item: entry.getValue()) {
+                        if (item.value() != null)
+                            values.add(item);
+                    }
+                }
+
+//                System.out.println(sql);
+
+                try {
+                    PreparedStatement stm = connection.prepareStatement(sql);
+                    int i = 0;
+                    for (Item item: values) {
+                        if (item.value() != null) {
+                            stm.setObject(i+1, item.value(), item.type());
+//                            System.out.println(i+1 + ": " + item);
+                            i += 1;
+                        }
+                    }
+
+                    ResultSet result = stm.executeQuery();
+                    List<Challenge> challenges = new ArrayList<>();
+                    while (result.next()) {
+                        challenges.add(challengeFromSQL(result));
+                    }
+                    return challenges.toArray(new Challenge[0]);
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+                return new Challenge[0];
+
+            }
+        }
+
+        public static Query query() {
+            return new Query();
+        }
+
         public static long add(Challenge c) {
             String sql = "INSERT INTO challenges (timestamp, type, scoreInc, scoreOpp, opp, replays) VALUES (?, ?," +
                          " ?, ?, ?, ?)";
@@ -240,6 +358,7 @@ public class Database {
                 stm.setInt(i++, c.scoreInc);
                 stm.setInt(i++, c.scoreOpp);
                 stm.setString(i++, Arrays.stream(c.opp)
+                        .sorted()
                         .mapToObj(String::valueOf)
                         .collect(Collectors.joining(DEL)));
                 stm.setString(i, String.join(DEL, c.replays));
@@ -266,81 +385,21 @@ public class Database {
          * Returns the last `n` challenges where the incumbent lost, ordered from latest to earliest.
          */
         public static Challenge[] lastTerms(Constants.Hill type, int n) {
-            String sql = "SELECT * FROM challenges WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp DESC " +
-                         "LIMIT ?";
-            try {
-                PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setInt(2, n);
-                stm.setInt(1, type.id);
-                ResultSet result = stm.executeQuery();
-                List<Challenge> challenges = new ArrayList<>();
-                while (result.next()) {
-                    challenges.add(challengeFromSQL(result));
-                }
-                return challenges.toArray(new Challenge[0]);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            return new Challenge[0];
-        }
-
-        private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
-            Challenge c = new Challenge();
-            c.timestamp = result.getLong("timestamp");
-            c.type = Constants.Hill.fromId(result.getInt("type"));
-            c.scoreInc = result.getInt("scoreInc");
-            c.scoreOpp = result.getInt("scoreOpp");
-            c.opp = Arrays.stream(result.getString("opp").split(DEL))
-                    .mapToLong(Long::parseLong)
-                    .toArray();
-            c.replays = result.getString("replays").split(DEL);
-            if (c.replays.length == 1 && c.replays[0].length() == 0) {
-                c.replays = new String[0];
-            }
-            return c;
+            return query().change().sort("desc").limit(n).type(type).get();
         }
 
         /**
          * Returns the first `n` challenges where the incumbent lost, ordered from earliest to latest.
          */
         public static Challenge[] firstTerms(Constants.Hill type, int n) {
-            String sql = "SELECT * FROM challenges WHERE scoreInc < scoreOpp AND type = ? ORDER BY timestamp " +
-                         "LIMIT ?";
-            try {
-                PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setInt(1, type.id);
-                stm.setInt(2, n);
-                ResultSet result = stm.executeQuery();
-                List<Challenge> challenges = new ArrayList<>();
-                while (result.next()) {
-                    challenges.add(challengeFromSQL(result));
-                }
-                return challenges.toArray(new Challenge[0]);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            return new Challenge[0];
+            return query().change().sort("asc").limit(n).type(type).get();
         }
 
         /**
          * Returns the challenges for a given user, ordered from latest to earliest.
          */
         public static Challenge[] xothTerms(Constants.Hill type, long[] xoth) {
-            String sql = "SELECT * FROM challenges WHERE scoreInc < scoreOpp AND type = ? AND opp = ? ORDER BY timestamp DESC";
-            try {
-                PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setInt(1, type.id);
-                stm.setString(2, Arrays.stream(xoth).<String>mapToObj(x -> x+"").collect(Collectors.joining(DEL)));
-                ResultSet result = stm.executeQuery();
-                List<Challenge> challenges = new ArrayList<>();
-                while (result.next()) {
-                    challenges.add(challengeFromSQL(result));
-                }
-                return challenges.toArray(new Challenge[0]);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            return new Challenge[0];
+            return query().change().type(type).opp(xoth).get();
         }
 
         public static int nthTerm(Constants.Hill type, long timestamp) {
@@ -363,47 +422,11 @@ public class Database {
          * Returns all challenges from `from` to `to` inclusive, from earliest to latest
          */
         public static Challenge[] get(Constants.Hill type, long from, long to) {
-            String sql = "SELECT * FROM challenges WHERE timestamp >= ? AND timestamp <= ? AND type = ? ORDER BY " +
-                         "timestamp";
-            try {
-                PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setLong(1, from);
-                stm.setLong(2, to);
-                stm.setInt(3, type.id);
-                ResultSet result = stm.executeQuery();
-                List<Challenge> challenges = new ArrayList<>();
-                while (result.next()) {
-                    challenges.add(challengeFromSQL(result));
-                }
-                return challenges.toArray(new Challenge[0]);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            return new Challenge[0];
+            return query().type(type).from(from).to(to).get();
         }
         
         public static Challenge[] getWithOpponent(Constants.Hill type, long from, long to, long[] opp) {
-            String sql = "SELECT * FROM challenges WHERE timestamp >= ? AND timestamp <= ? AND type = ? AND opp = ? ORDER BY "
-                    + "timestamp";
-            
-            try {
-                PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setLong(1, from);
-                stm.setLong(2, to);
-                stm.setInt(3, type.id);
-                stm.setString(4, Arrays.stream(opp)
-                        .mapToObj(String::valueOf)
-                        .collect(Collectors.joining(DEL)));
-                ResultSet result = stm.executeQuery();
-                List<Challenge> challenges = new ArrayList<>();
-                while (result.next()) {
-                    challenges.add(challengeFromSQL(result));
-                }
-                return challenges.toArray(new Challenge[0]);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            return new Challenge[0];
+            return query().type(type).from(from).to(to).opp(opp).get();
         }
         
         public static String getTeamName(long[] opp) {
