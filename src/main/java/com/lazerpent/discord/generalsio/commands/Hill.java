@@ -181,7 +181,8 @@ public class Hill {
                 .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc
                                                            + "**-" + c.scoreOpp :
                         c.scoreInc + "-**" + c.scoreOpp + "**")
-                                + " vs " + getOpponentName(oppMember, true));
+                                + " vs " + getOpponentName(oppMember, true))
+                .setTimestamp(Instant.ofEpochMilli(c.timestamp));
 
         if (c.replays.length != 0) {
             StringBuilder sb = new StringBuilder();
@@ -637,7 +638,7 @@ public class Hill {
         }
         Constants.Hill mode = Constants.Hill.fromString(args[1]);
         if(mode == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH")).queue();
             return;
         }
 
@@ -702,8 +703,8 @@ public class Hill {
             .setTitle(mode.name() + " #" + number)
             .setDescription(getOpponentName(xoth.opp, true))
             .addField("Challenges (" + challenges.length + ")", 
-                challenges.length == 0 ? "No challenges" : Arrays.stream(challenges)
-                    .map(c -> "vs " + getOpponentName(c.opp, true) + " - " + (c.scoreInc > c.scoreOpp? "**" + c.scoreInc + "**-" + c.scoreOpp : c.scoreInc + "-**" + c.scoreOpp + "**") + " (" + DateTimeFormatter.ofPattern("uuuu-MM-dd").format(Instant.ofEpochMilli(c.timestamp).atOffset(ZoneOffset.UTC)) + ")")
+                challenges.length == 0 ? "No challenges" : IntStream.range(0, challenges.length)
+                    .mapToObj(i -> "#" + i + ": vs " + getOpponentName(challenges[i].opp, true) + " - " + (challenges[i].scoreInc > challenges[i].scoreOpp? "**" + challenges[i].scoreInc + "**-" + challenges[i].scoreOpp : challenges[i].scoreInc + "-**" + challenges[i].scoreOpp + "**") + " (" + DateTimeFormatter.ofPattern("uuuu-MM-dd").format(Instant.ofEpochMilli(challenges[i].timestamp).atOffset(ZoneOffset.UTC)) + ")")
                     .collect(Collectors.joining("\n")),
                 false
             );
@@ -711,11 +712,56 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(embed.build()).queue();
     }
 
-    @Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "goth index | mention", "challenge # | mention"}, 
+    @Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "xoth index", "challenge # | mention"}, 
         desc = "Show the replays of the given goth / challenge number.", 
         perms = Constants.Perms.USER)
     public static void handleReplay(@NotNull Commands self, @NotNull Message msg, String[] args) {
+        if (args.length < 4) {
+            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 4, args.length)).queue();
+            return;
+        }
+        Constants.Hill mode = Constants.Hill.fromString(args[1]);
+        if(mode == null) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH")).queue();
+            return;
+        }
 
+        int xothIdx;
+        try {
+            xothIdx = Integer.parseInt(args[2]);
+        } catch (NumberFormatException e) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number")).queue();
+            return;
+        }
+
+        Challenge[] terms = Database.Hill.query().type(mode).change().limit(xothIdx+1).sort("asc").get();
+        if (terms.length < xothIdx) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No such " + mode.name())).queue();
+            return;
+        }
+
+        long start = terms[xothIdx-1].timestamp;
+        long end = Long.MAX_VALUE;
+        if (terms.length > xothIdx) {
+            end = terms[xothIdx].timestamp;
+        }
+
+        int challengeIdx;
+        try {
+            challengeIdx = Integer.parseInt(args[3]);
+        } catch (NumberFormatException e) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " challenge index must be a number")).queue();
+            return;
+        }
+
+        Challenge[] challenges = Database.Hill.query().type(mode).from(start).to(end).sort("asc").limit(challengeIdx).get();
+        if (challenges.length < challengeIdx+1) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No such " + mode.name() + " challenge")).queue();
+            return;
+        }
+        
+        Challenge challenge = challenges[challengeIdx];
+        msg.getChannel().sendMessageEmbeds(scoreEmbed(challenge, mode)).queue();
     }
 
     public static String getOpponentName(long[] opp, boolean mention) {
