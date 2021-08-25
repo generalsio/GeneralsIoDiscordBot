@@ -1,39 +1,9 @@
 package com.lazerpent.discord.generalsio;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.GraphicsEnvironment;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-import java.util.zip.DataFormatException;
-
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
@@ -53,16 +23,28 @@ import org.jfree.data.time.TimeSeriesCollection;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
+import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import java.util.zip.DataFormatException;
 
 public class ReplayStatistics {
     public static final Map<String, List<ReplayResult>> storedReplays = new HashMap<>();
-    public static StandardChartTheme theme = (StandardChartTheme) StandardChartTheme.createJFreeTheme();
-    public static Semaphore replayRequestSem = new Semaphore(250);
-    public static Semaphore replayIndividualSem = new Semaphore(250);
+    public static final StandardChartTheme theme = (StandardChartTheme) StandardChartTheme.createJFreeTheme();
+    public static final Semaphore replayRequestSem = new Semaphore(250);
+    public static final Semaphore replayIndividualSem = new Semaphore(250);
 
     static {
         try {
@@ -132,7 +114,8 @@ public class ReplayStatistics {
         List<Callable<JsonArray>> replayCollectTasks = new ArrayList<>();
         for (int a = 0; a < (count - 1) / 200 + 1; a++) {
             int id = a;
-            replayCollectTasks.add(() -> makeReplayRequest(username, offset + id * 200, Math.min(200, count - 200 * id)));
+            replayCollectTasks.add(() -> makeReplayRequest(username, offset + id * 200, Math.min(200,
+                    count - 200 * id)));
         }
         List<Future<JsonArray>> replayCollectResults;
         try {
@@ -157,7 +140,7 @@ public class ReplayStatistics {
         }
         return res;
     }
-    
+
     public static List<ReplayResult> getReplays(String username, int count) {
         return getReplays(username, count, 0);
     }
@@ -290,10 +273,10 @@ public class ReplayStatistics {
                 List<ReplayResult> replays = replayLookup.get(u);
                 double sum = 0;
                 for (int a = 0; a < replays.size(); a++) {
-                    if (gameMode == GameMode.ONE_V_ONE) {
-                        sum += (replays.get(a).isWin(u) ? 1 : 0);
-                    } else {
+                    if (gameMode != GameMode.ONE_V_ONE) {
                         sum += replays.get(a).getPercentile(u);
+                    } else {
+                        sum += (replays.get(a).isWin(u) ? 1 : 0);
                     }
                     if (bucketSize <= a) {
                         if (gameMode == GameMode.ONE_V_ONE) {
@@ -358,7 +341,7 @@ public class ReplayStatistics {
         verticalAxis.setNumberFormatOverride(new DecimalFormat("#%"));
         return chart;
     }
-    
+
     public static Replay getReplayFile(String id) {
         try {
             replayIndividualSem.acquire();
@@ -377,22 +360,20 @@ public class ReplayStatistics {
         }
         replayIndividualSem.release();
         try (InputStream compressedReplay = replayURL.openStream()) {
-            Replay curReplay = new Replay(JsonParser.parseString(
+            return new Replay(JsonParser.parseString(
                     LZStringImpl.decodeCompressedReplay(compressedReplay)).getAsJsonArray());
-            return curReplay;
         } catch (IOException | JsonSyntaxException | DataFormatException e) {
             System.out.println("Could not decode replay " + id + ": " + e.getMessage());
             return null;
         }
     }
-    
+
     public static Map<ReplayResult, Replay> convertReplayFiles(List<ReplayResult> reps) {
         ExecutorService executor = Executors.newCachedThreadPool();
         try {
-            List<Future<Map.Entry<ReplayResult, Replay>>> repFiles = executor.invokeAll(reps.stream().map((r) -> {
-                Callable<Map.Entry<ReplayResult, Replay>> task = () -> Map.entry(r, getReplayFile(r.id));
-                return task;
-            }).toList());
+            List<Future<Map.Entry<ReplayResult, Replay>>> repFiles = executor.invokeAll(reps.stream()
+                    .map((r) -> (Callable<Map.Entry<ReplayResult, Replay>>) () -> Map.entry(r,
+                            Objects.requireNonNull(getReplayFile(r.id)))).toList());
             return repFiles.stream().map((r) -> {
                 try {
                     return r.get();
@@ -403,7 +384,7 @@ public class ReplayStatistics {
                     System.out.println("Could not execute replay file requests.");
                     return null;
                 }
-            }).filter((r) -> r != null).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }).filter(Objects::nonNull).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         } catch (InterruptedException e) {
             System.out.println("Interrupted while requesting replay files.");
             return new HashMap<>();
@@ -413,52 +394,50 @@ public class ReplayStatistics {
     public static Map<String, Pair<Integer, Integer>> processRecent2v2Replays(String username) {
         Map<String, Pair<Integer, Integer>> res = new ConcurrentHashMap<>();
         List<ReplayResult> replayResults = getReplays(username, 200, 0);
-        if(replayResults.size() == 0) {
+        if (replayResults.size() == 0) {
             return new HashMap<>();
         }
         replayResults = replayResults.parallelStream()
                 .filter((r) -> r.type.equals("2v2") || r.type.equals("custom") && r.ranking.length == 4)
                 .toList();
-        convertReplayFiles(replayResults).entrySet().stream()
-                .forEach((entry) -> {
-                    String winner = entry.getKey().ranking[0].name;
-                    if (winner == null) return;
-                    Replay curReplay= entry.getValue();
-                    if (curReplay.teams != null) {
-                        int winIdx = 0;
-                        int playerIdx = 0;
-                        for (int a = 0; a < curReplay.usernames.length; a++) {
-                            if (curReplay.usernames[a].equals(winner)) {
-                                winIdx = a;
-                            }
-                            if (curReplay.usernames[a].equals(username)) {
-                                playerIdx = a;
-                            }
-                        }
-                        String partner = "";
-                        Set<Integer> s = new HashSet<>();
-                        boolean not2v2 = false;
-                        for (int a = 0; a < curReplay.teams.length; a++) {
-                            if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
-                                if (!partner.equals("")) {
-                                    not2v2 = true;
-                                    break;
-                                }
-                                partner = curReplay.usernames[a];
-                            }
-                            s.add(curReplay.teams[a]);
-                        }
-                        if (not2v2 || s.size() != 2 || partner.equals("")) return;
-                        res.merge(partner,
-                                Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                        0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                        a.getRight() + b.getRight()));
-                        res.merge(username,
-                                Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                        0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                        a.getRight() + b.getRight()));
+        convertReplayFiles(replayResults).forEach((key, curReplay) -> {
+            String winner = key.ranking[0].name;
+            if (winner == null) return;
+            if (curReplay.teams != null) {
+                int winIdx = 0;
+                int playerIdx = 0;
+                for (int a = 0; a < curReplay.usernames.length; a++) {
+                    if (curReplay.usernames[a].equals(winner)) {
+                        winIdx = a;
                     }
-                });
+                    if (curReplay.usernames[a].equals(username)) {
+                        playerIdx = a;
+                    }
+                }
+                String partner = "";
+                Set<Integer> s = new HashSet<>();
+                boolean not2v2 = false;
+                for (int a = 0; a < curReplay.teams.length; a++) {
+                    if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
+                        if (!partner.equals("")) {
+                            not2v2 = true;
+                            break;
+                        }
+                        partner = curReplay.usernames[a];
+                    }
+                    s.add(curReplay.teams[a]);
+                }
+                if (not2v2 || s.size() != 2 || partner.equals("")) return;
+                res.merge(partner,
+                        Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
+                                a.getRight() + b.getRight()));
+                res.merge(username,
+                        Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
+                                a.getRight() + b.getRight()));
+            }
+        });
         return res;
     }
 
@@ -472,6 +451,7 @@ public class ReplayStatistics {
         GAMES_PLAYED,
     }
 
+    @SuppressWarnings("unused")
     public static class ReplayResult {
         public String type;
         public String id;

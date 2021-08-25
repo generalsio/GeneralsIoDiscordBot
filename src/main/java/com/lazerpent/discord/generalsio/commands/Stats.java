@@ -1,13 +1,23 @@
 package com.lazerpent.discord.generalsio.commands;
 
+import com.lazerpent.discord.generalsio.Commands;
+import com.lazerpent.discord.generalsio.Commands.Category;
+import com.lazerpent.discord.generalsio.Commands.Command;
+import com.lazerpent.discord.generalsio.Constants;
+import com.lazerpent.discord.generalsio.ReplayStatistics;
+import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
+import com.lazerpent.discord.generalsio.Utils;
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.NotNull;
+import org.jfree.chart.JFreeChart;
+
+import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.OptionalDouble;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -17,21 +27,6 @@ import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.imageio.ImageIO;
-
-import org.apache.commons.lang3.tuple.Pair;
-import org.jetbrains.annotations.NotNull;
-import org.jfree.chart.JFreeChart;
-
-import com.lazerpent.discord.generalsio.*;
-import com.lazerpent.discord.generalsio.Commands.Category;
-import com.lazerpent.discord.generalsio.Commands.Command;
-import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
-
-import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageEmbed;
 
 @Category(cat = "stat", name = "Stats")
 public class Stats {
@@ -93,21 +88,14 @@ public class Stats {
             return;
         }
         switch (args[1]) {
-            case "add":
-                addToGraph(self, msg, Arrays.copyOfRange(args, 1, args.length));
-                break;
-            case "remove":
-                removeFromGraph(self, msg, Arrays.copyOfRange(args, 1, args.length));
-                break;
-            case "clear":
-                clearGraph(self, msg, Arrays.copyOfRange(args, 1, args.length));
-                break;
-            default:
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid graph command.")).queue();
+            case "add" -> addToGraph(msg, Arrays.copyOfRange(args, 1, args.length));
+            case "remove" -> removeFromGraph(msg, Arrays.copyOfRange(args, 1, args.length));
+            case "clear" -> clearGraph(msg, Arrays.copyOfRange(args, 1, args.length));
+            default -> msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid graph command.")).queue();
         }
     }
 
-    public static void addToGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
+    public static void addToGraph(@NotNull Message msg, String[] args) {
         String username = checkIfGraphRunnable(msg, args);
         if (username == null) return;
 
@@ -145,7 +133,7 @@ public class Stats {
                 }));
     }
 
-    public static void removeFromGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
+    public static void removeFromGraph(@NotNull Message msg, String[] args) {
         String username = checkIfGraphRunnable(msg, args);
         if (username == null) return;
         if (!ReplayStatistics.removePlayerFromGraph(username)) {
@@ -161,7 +149,7 @@ public class Stats {
         REQUESTED_PLAYERS.decrementAndGet();
     }
 
-    public static void clearGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
+    public static void clearGraph(@NotNull Message msg, String[] args) {
         if (args.length > 1) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "This command has no arguments.")).queue();
             return;

@@ -5,7 +5,6 @@ import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import org.jetbrains.annotations.NotNull;
 
-import java.awt.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -57,19 +56,6 @@ public class Utils {
      */
     public static MessageEmbed success(@NotNull Message msg, @NotNull String description) {
         return new EmbedBuilder().setTitle("Success")
-                .setDescription(description)
-                .setFooter(msg.getAuthor().getAsTag(), msg.getAuthor().getAvatarUrl())
-                .setColor(Constants.Colors.SUCCESS) // Green
-                .setTimestamp(Instant.now()).build();
-    }
-
-    /**
-     * Creates a generic success message with a provided message (which is put in the embed description)
-     *
-     * @param msg     Message object containing the user who completed this command
-     */
-    public static MessageEmbed success(@NotNull Message msg, @NotNull String title, @NotNull String description) {
-        return new EmbedBuilder().setTitle(title)
                 .setDescription(description)
                 .setFooter(msg.getAuthor().getAsTag(), msg.getAuthor().getAvatarUrl())
                 .setColor(Constants.Colors.SUCCESS) // Green

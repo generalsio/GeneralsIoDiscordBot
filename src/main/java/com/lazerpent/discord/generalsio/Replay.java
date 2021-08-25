@@ -10,56 +10,57 @@ import java.util.stream.StreamSupport;
 /**
  * Represents a generals.io replay file.
  */
+@SuppressWarnings("unused") // Most of the replay fields are not used by the bot, but are required by the API response
 public class Replay {
     /**
      * The version number of the replay file.
      */
-    public int version;
+    public final int version;
     /**
      * The replay ID of the replay.
      */
-    public String id;
+    public final String id;
     /**
      * The width of the map.
      */
-    public int mapWidth;
+    public final int mapWidth;
     /**
      * The height of the map.
      */
-    public int mapHeight;
+    public final int mapHeight;
     /**
      * The list of usernames of players, ordered by player index.
      */
-    public String[] usernames;
+    public final String[] usernames;
     /**
      * The list of stars that each player had at the time of the game, ordered by
      * player index.
      */
-    public int[] stars;
+    public final int[] stars;
     /**
      * The list of map indices for cities that were on the map.
      */
-    public int[] cities;
+    public final int[] cities;
     /**
      * The list of army counts for each city.
      */
-    public int[] cityArmies;
+    public final int[] cityArmies;
     /**
      * The list of map indices of generals, ordered by player index.
      */
-    public int[] generals;
+    public final int[] generals;
     /**
      * The list of map indices of mountains.
      */
-    public int[] mountains;
+    public final int[] mountains;
     /**
      * The list of moves made in the replay.
      */
-    public Replay.Move[] moves;
+    public final Replay.Move[] moves;
     /**
      * The list of surrenders and death in the replay.
      */
-    public Replay.Surrender[] afks;
+    public final Replay.Surrender[] afks;
     /**
      * The list of teams that each player was on, ordered by player index. Empty or
      * null if not a team game.
@@ -160,19 +161,19 @@ public class Replay {
                     .mapToInt(JsonElement::getAsInt).toArray();
         }
     }
-    
+
     public boolean onSameTeam(String... players) {
-        Set<Integer> teamIdx = new HashSet<Integer>();
-        for(String u : players) {
+        Set<Integer> teamIdx = new HashSet<>();
+        for (String u : players) {
             boolean found = false;
-            for(int a = 0; a < usernames.length; a++) {
-                if(usernames[a].equals(u)) {
+            for (int a = 0; a < usernames.length; a++) {
+                if (usernames[a].equals(u)) {
                     teamIdx.add(teams[a]);
                     found = true;
                     break;
                 }
             }
-            if(!found) teamIdx.add(-1);
+            if (!found) teamIdx.add(-1);
         }
         return (teamIdx.size() == 1 && !teamIdx.contains(-1));
     }
@@ -184,40 +185,40 @@ public class Replay {
         /**
          * The index of the player that made the move.
          */
-        public int index;
+        public final int index;
         /**
          * The starting map index of the move.
          */
-        public int start;
+        public final int start;
         /**
          * The ending map index of the move.
          */
-        public int end;
+        public final int end;
         /**
          * 1 if the move was a split move.
          */
-        public int is50;
+        public final int is50;
         /**
          * The turn when the move was made.
          */
-        public int turn;
+        public final int turn;
         /**
          * The amount of army moved in this move. This field is not part of the replay
          * file itself, but used to record information necessary to reverse the replay.
          */
-        public int attackStrength;
+        public final int attackStrength;
         /**
          * The index of the player that was attacked in this move. -1 if the move goes
          * into empty land. This field is not part of the replay file itself, but used
          * to record information necessary to reverse the replay.
          */
-        public int defenderIdx;
+        public final int defenderIdx;
         /**
          * True if the move resulted in the capture of a general. This field is not part
          * of the replay file itself, but used to record information necessary to
          * reverse the replay.
          */
-        public boolean wasCapture;
+        public final boolean wasCapture;
 
         public Move(JsonArray arr) {
             int idx = 0;
@@ -241,11 +242,11 @@ public class Replay {
         /**
          * The index of the player.
          */
-        public int index;
+        public final int index;
         /**
          * The turn when the player surrendered or died.
          */
-        public int turn;
+        public final int turn;
 
         public Surrender(JsonArray arr) {
             int idx = 0;
@@ -255,10 +256,10 @@ public class Replay {
     }
 
     public static class ChatMessage {
-        public String message;
-        public String prefix;
-        public int index;
-        public int turn;
+        public final String message;
+        public final String prefix;
+        public final int index;
+        public final int turn;
 
         public ChatMessage(JsonArray arr) {
             int idx = 0;

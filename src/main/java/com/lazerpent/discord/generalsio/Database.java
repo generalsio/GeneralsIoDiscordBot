@@ -5,17 +5,11 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Database {
     private static final Connection connection;
-    private static final String DATABASE_TABLE = "discord_to_generals";
 
     static {
 
@@ -65,7 +59,7 @@ public class Database {
             System.out.println("Error creating table challenges.");
             e.printStackTrace();
         }
-        
+
         try {
             connection.createStatement().execute(
                     "CREATE TABLE IF NOT EXISTS team_names " +
@@ -93,7 +87,7 @@ public class Database {
     }
 
     public static void addDiscordGenerals(long discordId, String generalsName) {
-        String sql = "insert into " + DATABASE_TABLE + " (discordId, generalsName) values(?,?)";
+        String sql = "insert into discord_to_generals (discordId, generalsName) values(?,?)";
         try {
             PreparedStatement stm = connection.prepareStatement(sql);
             stm.setLong(1, discordId);
@@ -105,7 +99,7 @@ public class Database {
     }
 
     public static void updateDiscordGenerals(long oldDiscordId, long discordId, String generalsName) {
-        String sql = "update " + DATABASE_TABLE + " set discordId = ?, generalsName = ? where discordId = ?";
+        String sql = "update discord_to_generals set discordId = ?, generalsName = ? where discordId = ?";
         try {
             PreparedStatement statement = connection.prepareStatement(sql);
             statement.setLong(1, discordId);
@@ -118,7 +112,7 @@ public class Database {
     }
 
     public static String getGeneralsName(long discordId) {
-        String sql = "select generalsName from " + DATABASE_TABLE + " where discordId=?";
+        String sql = "select generalsName from discord_to_generals where discordId=?";
         try {
             PreparedStatement stm = connection.prepareStatement(sql);
             stm.setLong(1, discordId);
@@ -135,7 +129,7 @@ public class Database {
     }
 
     public static long getDiscordId(String generalsName) {
-        String sql = "select discordId from " + DATABASE_TABLE + " where generalsName=?";
+        String sql = "select discordId from discord_to_generals where generalsName=?";
         try {
             PreparedStatement stm = connection.prepareStatement(sql);
             stm.setString(1, generalsName);
@@ -152,7 +146,7 @@ public class Database {
     }
 
     public static boolean noMatch(long discordId, String generalsName) {
-        String sql = "select 1 from " + DATABASE_TABLE + " where generalsName=? or discordId=?";
+        String sql = "select 1 from discord_to_generals where generalsName=? or discordId=?";
         try {
             PreparedStatement stm = connection.prepareStatement(sql);
             stm.setString(1, generalsName);
@@ -232,122 +226,7 @@ public class Database {
     public static class Hill {
         private final static String DEL = "\u001F";
 
-        public static class Query {
-            private record Item(String clause, String content, int type, Object value) {}
-
-            private List<Item> items;
-
-            Query() {
-                this.items = new ArrayList<>();
-            }
-
-            public Query type(Constants.Hill type) {
-                this.items.add(new Item("WHERE", "type = ?", Types.INTEGER, type.id));
-                return this;
-            }
-
-            public Query from(long timestamp) {
-                this.items.add(new Item("WHERE", "timestamp >= ?", Types.INTEGER, new Long(timestamp)));
-                return this;
-            }
-
-            public Query to(long timestamp) {
-                this.items.add(new Item("WHERE", "timestamp <= ?", Types.INTEGER, new Long(timestamp)));
-                return this;
-            }
-
-            /** Change in XoTH */
-            public Query change()  {
-                this.items.add(new Item("WHERE", "scoreInc < scoreOpp", 0, null));
-                return this;
-            }
-
-            public Query opp(long[] xoth) {
-                this.items.add(new Item("WHERE", "opp = ?", Types.NVARCHAR, Arrays.stream(xoth).sorted().<String>mapToObj(x -> x+"").collect(Collectors.joining(DEL))));
-                return this;
-            }
-
-            /** "asc" or "desc" */
-            public Query sort(String order) {
-                this.items.add(new Item("ORDER", "BY timestamp " + order.toUpperCase(), 0, null));
-                return this;
-            }
-
-            public Query limit(int n) {
-                this.items.add(new Item("LIMIT", "?", Types.INTEGER, n));
-                return this;
-            }
-
-            private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
-                Challenge c = new Challenge();
-                c.timestamp = result.getLong("timestamp");
-                c.type = Constants.Hill.fromId(result.getInt("type"));
-                c.scoreInc = result.getInt("scoreInc");
-                c.scoreOpp = result.getInt("scoreOpp");
-                c.opp = Arrays.stream(result.getString("opp").split(DEL))
-                        .mapToLong(Long::parseLong)
-                        .toArray();
-                c.replays = result.getString("replays").split(DEL);
-                if (c.replays.length == 1 && c.replays[0].length() == 0) {
-                    c.replays = new String[0];
-                }
-                return c;
-            }
-            
-            public Challenge[] get() {
-                Map<String, List<Item>> itemsBC = new HashMap<>();
-                for (Item item: this.items) {
-                    itemsBC.putIfAbsent(item.clause(), new ArrayList<>());
-                    itemsBC.get(item.clause()).add(item);
-                }
-
-                String sql = "SELECT * FROM challenges";
-                List<Item> values = new ArrayList<>();
-                sql += " WHERE " + itemsBC.get("WHERE").stream().map(i -> i.content()).collect(Collectors.joining(" AND "));
-                for (Item item: itemsBC.get("WHERE")) {
-                    values.add(item);
-                }
-                for (Map.Entry<String, List<Item>> entry: itemsBC.entrySet()) {
-                    if (entry.getKey().equals("WHERE")) continue;
-                    sql += " " + entry.getKey() + " " + entry.getValue().get(0).content();
-                    for (Item item: entry.getValue()) {
-                        if (item.value() != null)
-                            values.add(item);
-                    }
-                }
-
-//                System.out.println(sql);
-
-                try {
-                    PreparedStatement stm = connection.prepareStatement(sql);
-                    int i = 0;
-                    for (Item item: values) {
-                        if (item.value() != null) {
-                            stm.setObject(i+1, item.value(), item.type());
-//                            System.out.println(i+1 + ": " + item);
-                            i += 1;
-                        }
-                    }
-
-                    ResultSet result = stm.executeQuery();
-                    List<Challenge> challenges = new ArrayList<>();
-                    while (result.next()) {
-                        challenges.add(challengeFromSQL(result));
-                    }
-                    return challenges.toArray(new Challenge[0]);
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-                return new Challenge[0];
-
-            }
-        }
-
-        public static Query query() {
-            return new Query();
-        }
-
-        public static long add(Challenge c) {
+        public static void add(Challenge c) {
             String sql = "INSERT INTO challenges (timestamp, type, scoreInc, scoreOpp, opp, replays) VALUES (?, ?," +
                          " ?, ?, ?, ?)";
             try {
@@ -363,11 +242,32 @@ public class Database {
                         .collect(Collectors.joining(DEL)));
                 stm.setString(i, String.join(DEL, c.replays));
                 stm.execute();
-                return c.timestamp;
             } catch (SQLException e) {
                 e.printStackTrace();
-                return -1;
             }
+        }
+
+        public static Query query() {
+            return new Query();
+        }
+
+        public static String getTeamName(long[] opp) {
+            String sql = "SELECT teamName FROM team_names WHERE team = ?";
+            String team = Arrays.stream(opp).mapToObj(String::valueOf)
+                    .collect(Collectors.joining(DEL));
+            try {
+                PreparedStatement stm = connection.prepareStatement(sql);
+                stm.setString(1, team);
+                ResultSet result = stm.executeQuery();
+                if (result.next()) {
+                    return result.getString("teamName");
+                } else {
+                    return null;
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return null;
         }
 
         public static void delete(long timestamp) {
@@ -424,34 +324,15 @@ public class Database {
         public static Challenge[] get(Constants.Hill type, long from, long to) {
             return query().type(type).from(from).to(to).get();
         }
-        
+
         public static Challenge[] getWithOpponent(Constants.Hill type, long from, long to, long[] opp) {
             return query().type(type).from(from).to(to).opp(opp).get();
         }
-        
-        public static String getTeamName(long[] opp) {
-            String sql = "SELECT teamName FROM team_names WHERE team = ?";
-            String team = Arrays.stream(opp).mapToObj(String::valueOf)
-                    .collect(Collectors.joining(DEL));
-            try {
-                PreparedStatement stm = connection.prepareStatement(sql);
-                stm.setString(1, team);
-                ResultSet result = stm.executeQuery();
-                if(result.next()) {
-                    return result.getString("teamName");
-                } else {
-                    return null;
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            return null;
-        }
-        
+
         public static void setTeamName(long[] opp, String name) {
             String sql = "INSERT INTO team_names(team, teamName) "
-                    + "VALUES(?, ?) ON CONFLICT(team)"
-                    + "DO UPDATE SET teamName = excluded.teamName";
+                         + "VALUES(?, ?) ON CONFLICT(team)"
+                         + "DO UPDATE SET teamName = excluded.teamName";
             String team = Arrays.stream(opp).mapToObj(String::valueOf)
                     .collect(Collectors.joining(DEL));
             try {
@@ -461,6 +342,120 @@ public class Database {
                 stm.execute();
             } catch (SQLException e) {
                 e.printStackTrace();
+            }
+        }
+
+        public static class Query {
+            private final List<Item> items;
+
+            public Query from(long timestamp) {
+                this.items.add(new Item("WHERE", "timestamp >= ?", Types.INTEGER, timestamp));
+                return this;
+            }
+
+            Query() {
+                this.items = new ArrayList<>();
+            }
+
+            public Query type(Constants.Hill type) {
+                this.items.add(new Item("WHERE", "type = ?", Types.INTEGER, type.id));
+                return this;
+            }
+
+            public Query to(long timestamp) {
+                this.items.add(new Item("WHERE", "timestamp <= ?", Types.INTEGER, timestamp));
+                return this;
+            }
+
+            /**
+             * Change in XoTH
+             */
+            public Query change() {
+                this.items.add(new Item("WHERE", "scoreInc < scoreOpp", 0, null));
+                return this;
+            }
+
+            public Query opp(long[] xoth) {
+                this.items.add(new Item("WHERE", "opp = ?", Types.NVARCHAR,
+                        Arrays.stream(xoth).sorted().<String>mapToObj(x -> x + "").collect(Collectors.joining(DEL))));
+                return this;
+            }
+
+            /**
+             * "asc" or "desc"
+             */
+            public Query sort(String order) {
+                this.items.add(new Item("ORDER", "BY timestamp " + order.toUpperCase(), 0, null));
+                return this;
+            }
+
+            public Challenge[] get() {
+                Map<String, List<Item>> itemsBC = new HashMap<>();
+                for (Item item : this.items) {
+                    itemsBC.putIfAbsent(item.clause(), new ArrayList<>());
+                    itemsBC.get(item.clause()).add(item);
+                }
+
+                StringBuilder sql = new StringBuilder("SELECT * FROM challenges");
+                sql.append(" WHERE ").append(itemsBC.get("WHERE").stream().map(Item::content).collect(Collectors.joining(" AND ")));
+                List<Item> values = new ArrayList<>(itemsBC.get("WHERE"));
+                for (Map.Entry<String, List<Item>> entry : itemsBC.entrySet()) {
+                    if (entry.getKey().equals("WHERE")) continue;
+                    sql.append(" ").append(entry.getKey()).append(" ").append(entry.getValue().get(0).content());
+                    for (Item item : entry.getValue()) {
+                        if (item.value() != null)
+                            values.add(item);
+                    }
+                }
+
+//                System.out.println(sql);
+
+                try {
+                    PreparedStatement stm = connection.prepareStatement(sql.toString());
+                    int i = 0;
+                    for (Item item : values) {
+                        if (item.value() != null) {
+                            stm.setObject(i + 1, item.value(), item.type());
+//                            System.out.println(i+1 + ": " + item);
+                            i += 1;
+                        }
+                    }
+
+                    ResultSet result = stm.executeQuery();
+                    List<Challenge> challenges = new ArrayList<>();
+                    while (result.next()) {
+                        challenges.add(challengeFromSQL(result));
+                    }
+                    return challenges.toArray(new Challenge[0]);
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+                return new Challenge[0];
+
+            }
+
+            public Query limit(int n) {
+                this.items.add(new Item("LIMIT", "?", Types.INTEGER, n));
+                return this;
+            }
+
+            private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
+                Challenge c = new Challenge();
+                c.timestamp = result.getLong("timestamp");
+                c.type = Constants.Hill.fromId(result.getInt("type"));
+                c.scoreInc = result.getInt("scoreInc");
+                c.scoreOpp = result.getInt("scoreOpp");
+                c.opp = Arrays.stream(result.getString("opp").split(DEL))
+                        .mapToLong(Long::parseLong)
+                        .toArray();
+                c.replays = result.getString("replays").split(DEL);
+                if (c.replays.length == 1 && c.replays[0].length() == 0) {
+                    c.replays = new String[0];
+                }
+                return c;
+            }
+
+            private record Item(String clause, String content, int type, Object value) {
             }
         }
 
