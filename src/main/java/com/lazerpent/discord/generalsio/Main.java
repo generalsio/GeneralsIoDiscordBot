@@ -1,6 +1,7 @@
 package com.lazerpent.discord.generalsio;
 
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -25,6 +26,7 @@ public class Main {
         JDABuilder builder = JDABuilder.create(token, Arrays.asList(GatewayIntent.values()));
         builder.addEventListeners(new Commands());
         builder.setAutoReconnect(true);
+        builder.setActivity(Activity.playing("https://generals.io/"));
         try {
             builder.build();
         } catch (LoginException e) {
