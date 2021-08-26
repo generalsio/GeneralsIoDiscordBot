@@ -151,10 +151,8 @@ public class Database {
             java.util.Objects.requireNonNull(username);
         }
 
-        public int compareTo(User u) {
-            if (this.discordId() < u.discordId()) return -1;
-            if (this.discordId() == u.discordId()) return 0;
-            return 1;
+        public int compareTo(@NotNull User other) {
+            return Long.compare(this.discordId(), other.discordId());
         }
 
         public static @Nullable User fromId(long discordId) {

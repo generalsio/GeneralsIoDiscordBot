@@ -1,27 +1,21 @@
 package com.lazerpent.discord.generalsio.commands;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import com.lazerpent.discord.generalsio.Commands;
+import com.lazerpent.discord.generalsio.*;
 import com.lazerpent.discord.generalsio.Commands.Category;
 import com.lazerpent.discord.generalsio.Commands.Command;
-import com.lazerpent.discord.generalsio.Constants;
-import com.lazerpent.discord.generalsio.Database;
-import com.lazerpent.discord.generalsio.RoleHandler;
-import com.lazerpent.discord.generalsio.Utils;
-
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 @Category(cat = "game", name = "Game")
 public class Game {
@@ -98,7 +92,7 @@ public class Game {
     }
 
     private static void customLink(@NotNull Message msg, @NotNull String[] cmd, @NotNull Constants.Server server) {
-        String link = cmd.length > 1 ? cmd[1] :
+        String link = cmd.length > 1 && cmd[1].matches("^[\\d\\w]+$") ? cmd[1] :
                 Long.toString((long) (Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
         String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
         if (map != null && (map.equals("-") || map.equals("."))) map = null;

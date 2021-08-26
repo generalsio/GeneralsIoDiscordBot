@@ -14,7 +14,6 @@ import net.dv8tion.jda.api.interactions.components.Button;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -272,11 +271,12 @@ public class Hill {
         }
 
         long[] tempXothIDs = msg.getMentionedMembers().stream().mapToLong(Member::getIdLong).sorted().toArray();
-        Database.User[] tempXoth = Arrays.stream(tempXothIDs).mapToObj(Database.User::fromId).toArray(Database.User[]::new);
-        for (int i =0; i < tempXothIDs.length; i++) {
+        Database.User[] tempXoth =
+                Arrays.stream(tempXothIDs).mapToObj(Database.User::fromId).toArray(Database.User[]::new);
+        for (int i = 0; i < tempXothIDs.length; i++) {
             if (tempXoth[i] == null) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "<@" + tempXothIDs[i] + "> is not registered.")).queue();
-                return;  
+                return;
             }
         }
 
@@ -404,15 +404,15 @@ public class Hill {
                             .build())
                     .setActionRows(ActionRow.of(List.of(
                             Button.success(String.format("%s-accept-%d-%s",
-                                    mode.name().toLowerCase(),
-                                    bestof,
-                                    Arrays.stream(challengers).mapToObj(String::valueOf).collect(Collectors.joining(
-                                            "-"))),
+                                            mode.name().toLowerCase(),
+                                            bestof,
+                                            Arrays.stream(challengers).mapToObj(String::valueOf).collect(Collectors.joining(
+                                                    "-"))),
                                     "Accept"),
                             Button.danger(String.format("%s-reject-%s",
-                                    mode.name().toLowerCase(),
-                                    Arrays.stream(challengers).mapToObj(String::valueOf).collect(Collectors.joining(
-                                            "-"))),
+                                            mode.name().toLowerCase(),
+                                            Arrays.stream(challengers).mapToObj(String::valueOf).collect(Collectors.joining(
+                                                    "-"))),
                                     "Reject")
                     )))
                     .build()).queue();
@@ -522,7 +522,8 @@ public class Hill {
         }
     }
 
-    @Command(name = {"hof"}, args = {"goth | aoth?", "top | seq?", "limit?"}, desc = "Show GoTH or AoTH hall of fame.", perms
+    @Command(name = {"hof"}, args = {"goth | aoth?", "top | seq?", "limit?"}, desc = "Show GoTH or AoTH hall of fame" +
+                                                                                     ".", perms
             = Constants.Perms.USER)
     public static void handleHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
         Constants.Hill mode;
@@ -571,10 +572,10 @@ public class Hill {
         EmbedBuilder hofEmbed = new EmbedBuilder()
                 .setColor(mode.color)
                 .setTitle(mode.name() + " Hall of Fame")
-                .setDescription(Arrays.stream(xothOrder).<String>mapToObj(
-                        a -> "#" + (a + 1) + ": " + getOpponentName(xoths[a].opp, true) + " - " + termLengths[a] +
-                             " challenges (<t:" + 
-                               (xoths[a].timestamp / 1000) + ":D>)").collect(Collectors.joining("\n")));
+                .setDescription(Arrays.stream(xothOrder).mapToObj(
+                                a -> "#" + (a + 1) + ": " + getOpponentName(xoths[a].opp, true) + " - " + termLengths[a] +
+                                     " challenges (<t:" + (xoths[a].timestamp / 1000) + ":D>)")
+                        .limit(limit).collect(Collectors.joining("\n")));
 
         msg.getChannel().sendMessageEmbeds(hofEmbed.build()).queue();
     }
@@ -713,7 +714,7 @@ public class Hill {
                 final Challenge c = challenges[i];
 
                 String date = "<t:" + (c.timestamp / 1000) + ":D>";
-                String s = "#" + (i+1) + ": vs " + getOpponentName(c.opp, true) + " - ";
+                String s = "#" + (i + 1) + ": vs " + getOpponentName(c.opp, true) + " - ";
 
                 if (c.scoreInc > c.scoreOpp) {
                     s += "**" + c.scoreInc + "**-" + c.scoreOpp;
@@ -752,7 +753,8 @@ public class Hill {
         try {
             xothIdx = Integer.parseInt(args[2]);
             if (xothIdx < 1) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number greater than 0")).queue();
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number greater " +
+                                                                    "than 0")).queue();
             }
         } catch (NumberFormatException e) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number")).queue();
