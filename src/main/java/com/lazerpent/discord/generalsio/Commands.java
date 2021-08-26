@@ -180,7 +180,7 @@ public class Commands extends ListenerAdapter {
         Punishments.disable(msg, cmd);
     }
 
-    private static void logIfPresent(Exception e, Guild g, String context) {
+    private static void logIfPresent(Throwable e, Guild g, String context) {
         long channel = Constants.GUILD_INFO.get(g.getIdLong()).errorChannel;
         if (channel != -1) {
             StringWriter write = new StringWriter();
@@ -257,10 +257,10 @@ public class Commands extends ListenerAdapter {
 
             try {
                 cmdMethod.invoke(null, this, msg, command);
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
                                               event.getMessage().getContentDisplay());
         }
