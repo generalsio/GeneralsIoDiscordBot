@@ -151,12 +151,18 @@ public class Hill {
                 .setTimestamp(Instant.ofEpochMilli(c.timestamp));
 
         if (c.replays.length != 0) {
-            StringBuilder sb = new StringBuilder();
-            for (String replay : c.replays) {
-                sb.append("https://generals.io/replays/").append(replay).append("\n");
-            }
+            if (c.replays[0].equals("..")) {
+                embed.addField("Note", mode.name() + " challenge manually added with !hadd", false);
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (String replay : c.replays) {
+                    sb.append("https://generals.io/replays/").append(replay).append("\n");
+                }
 
-            embed.addField("Replays", sb.toString(), false);
+                embed.addField("Replays", sb.toString(), false);
+            }
+        } else {
+            embed.addField("Note", mode.name() + " manually set by !hset", false);
         }
 
         return embed.build();
@@ -265,20 +271,26 @@ public class Hill {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify " + mode.teamSize + " users.")).queue();
             return;
         }
-        long[] tempXoth = msg.getMentionedMembers().stream()
-                .mapToLong(Member::getIdLong)
-                .sorted()
-                .toArray();
+
+        long[] tempXothIDs = msg.getMentionedMembers().stream().mapToLong(Member::getIdLong).toArray();
+        Database.User[] tempXoth = Arrays.stream(tempXothIDs).mapToObj(Database.User::fromId).sorted().toArray(Database.User[]::new);
+        for (int i =0; i < tempXothIDs.length; i++) {
+            if (tempXoth[i] == null) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "<@" + tempXothIDs[i] + "> is not registered.")).queue();
+                return;  
+            }
+        }
 
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
+        // Update XoTH roles
         Role role = Objects.requireNonNull(msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode)));
         for (Member formerXoth :
                 msg.getGuild().getMembersWithRoles(msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode)))) {
             msg.getGuild().removeRoleFromMember(formerXoth, role).queue();
         }
-        for (long challenger : tempXoth) {
-            msg.getGuild().addRoleToMember(challenger, role).queue();
+        for (Database.User challenger : tempXoth) {
+            msg.getGuild().addRoleToMember(challenger.discordId(), role).queue();
         }
 
         Challenge c = new Challenge();
@@ -286,7 +298,7 @@ public class Hill {
         c.type = mode;
         c.scoreInc = 0;
         c.scoreOpp = 1;
-        c.opp = tempXoth;
+        c.opp = Arrays.stream(tempXoth).mapToLong(Database.User::discordId).toArray();
         c.replays = new String[]{};
         Database.Hill.add(c);
 
@@ -295,7 +307,7 @@ public class Hill {
                 .setTitle("Temporary " + mode.name() + " set")
                 .setDescription(String.format("%s %s the temporary %s. They will not be recorded in the " +
                                               "hall of fame until they win a challenge.",
-                        getOpponentName(tempXoth, false),
+                        formatUsers(tempXoth, false),
                         (tempXoth.length == 1 ? "is" : "are"), mode))
                 .build()).queue();
     }
@@ -691,7 +703,7 @@ public class Hill {
                 final Challenge c = challenges[i];
 
                 String date = dateFormat.format(Instant.ofEpochMilli(c.timestamp).atOffset(ZoneOffset.UTC));
-                String s = "#" + i + ": vs " + getOpponentName(c.opp, true) + " - ";
+                String s = "#" + (i+1) + ": vs " + getOpponentName(c.opp, true) + " - ";
 
                 if (c.scoreInc > c.scoreOpp) {
                     s += "**" + c.scoreInc + "**-" + c.scoreOpp;
@@ -712,7 +724,7 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(embed.build()).queue();
     }
 
-    @Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "xoth index", "challenge # | mention"},
+    @Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "xoth index", "challenge #"},
             desc = "Show the replays of the given goth / challenge number.",
             perms = Constants.Perms.USER)
     public static void handleReplay(@NotNull Commands self, @NotNull Message msg, String[] args) {
@@ -729,6 +741,9 @@ public class Hill {
         int xothIdx;
         try {
             xothIdx = Integer.parseInt(args[2]);
+            if (xothIdx < 1) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number greater than 0")).queue();
+            }
         } catch (NumberFormatException e) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number")).queue();
             return;
@@ -756,7 +771,7 @@ public class Hill {
         }
 
         Challenge[] challenges =
-                Database.Hill.query().type(mode).from(start).to(end).sort("asc").limit(challengeIdx).get();
+                Database.Hill.query().type(mode).from(start).to(end).sort("asc").limit(challengeIdx + 1).get();
         if (challenges.length < challengeIdx + 1) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No such " + mode.name() + " challenge")).queue();
             return;
@@ -766,12 +781,18 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(scoreEmbed(challenge, mode)).queue();
     }
 
+    public static String formatUsers(Database.User[] users, boolean mention) {
+        if (mention)
+            return Arrays.stream(users).map(user -> user.username() + " (<@" + user.discordId() + ">)").collect(Collectors.joining(" + "));
+        return Arrays.stream(users).map(Database.User::username).collect(Collectors.joining(" + "));
+    }
+
     public static String getOpponentName(long[] opp, boolean mention) {
         if (mention)
             return Arrays.stream(opp).mapToObj(id -> Database.getGeneralsName(id) + " (<@" + id + ">)")
-                    .collect(Collectors.joining(" and "));
+                    .collect(Collectors.joining(" + "));
         else
-            return Arrays.stream(opp).mapToObj(Database::getGeneralsName).collect(Collectors.joining(" and "));
+            return Arrays.stream(opp).mapToObj(Database::getGeneralsName).collect(Collectors.joining(" + "));
     }
 
     private static class ChallengeData {

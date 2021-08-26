@@ -1,6 +1,7 @@
 package com.lazerpent.discord.generalsio;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -143,6 +144,31 @@ public class Database {
             e.printStackTrace();
         }
         return -1;
+    }
+
+    public record User(long discordId, String username) {
+        public User {
+            java.util.Objects.requireNonNull(username);
+        }
+
+        public static @Nullable User fromId(long discordId) {
+            String username = Database.getGeneralsName(discordId);
+            if (username == null) {
+                return null;
+            }
+
+            return new User(discordId, username);
+        }
+
+
+        public static @Nullable User fromUsername(@NotNull String username) {
+            long id = Database.getDiscordId(username);
+            if (id < 0) {
+                return null;
+            }
+
+            return new User(id, username);
+        }
     }
 
     public static boolean noMatch(long discordId, String generalsName) {
