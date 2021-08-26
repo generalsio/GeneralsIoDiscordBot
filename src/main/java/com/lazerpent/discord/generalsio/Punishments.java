@@ -20,8 +20,9 @@ import java.util.stream.Collectors;
  * Punishment handler
  * This whole system requires moderator permission to use
  * <p>
- * Allows for moderators to add usernames to a "punishment" list, or a "disable" list. All usernames on the disable list
- * are also on the punishment list (since by disabling, punish should also be ran).
+ * Allows for moderators to add usernames to a "punishment" list, or a "disable" list. All usernames on the disabled
+ * list
+ * are also on the punishment list (since by disabling, punish should also be run).
  * <p>
  * A moderator can then pull up a list of the command to run to punish/disable the users. After running a command, the
  * moderator can select to clear the list and start over
@@ -44,7 +45,7 @@ public class Punishments {
     }
 
     /**
-     * Allows a moderator to add a list of usernames to the disable list
+     * Allows a moderator to add a list of usernames to the disabled list
      * <p>
      * Run as: disable username1 "username 2" username3 ...
      *

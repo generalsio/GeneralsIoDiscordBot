@@ -208,10 +208,10 @@ public class Database {
     }
 
     /**
-     * Adds a provided username to the disable list. If a user is already in the list as a punish only, updates to
+     * Adds a provided username to the disabled list. If a user is already in the list as a punished only, updates to
      * disable. If a user is already marked as disable, does nothing.
      *
-     * @param username Username to add to the disable list
+     * @param username Username to add to the disabled list
      */
     public static void addDisable(String username) {
         try {

@@ -54,11 +54,12 @@ public class Constants {
                     ))
                     .setHillRoles(Map.of(
                             Hill.GoTH, 833446837230764062L,
-                            Hill.AoTH, 851232536482021377L 
+                            Hill.AoTH, 851232536482021377L
                     ))
                     .setIgnoreChannels(774660554362716181L)
                     .setRolesMessage(795825358905409606L)
                     .setModeratorRole(309536399005188097L)
+                    .setErrorChannel(880559867818037248L)
                     .build()
     );
 
@@ -145,6 +146,7 @@ public class Constants {
         private boolean built;
         public Map<Hill, Long> hillRoles;
         public boolean development;
+        public long errorChannel = -1;
 
         public GuildInfo() {
             this.built = false;
@@ -201,6 +203,12 @@ public class Constants {
         public GuildInfo setDevelopment(boolean dev) {
             if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.development = dev;
+            return this;
+        }
+
+        public GuildInfo setErrorChannel(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
+            this.errorChannel = id;
             return this;
         }
 

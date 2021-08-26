@@ -40,7 +40,7 @@ public class RoleHandler {
             if (value != null && value > time) {
                 return;
             }
-            rateLimit.put(Pair.of(event.getUser().getIdLong(), r.getIdLong()), time + 3000); // 3 second delay
+            rateLimit.put(Pair.of(event.getUser().getIdLong(), r.getIdLong()), time + 3000); // 3-second delay
 
 
             // If they already have the role, remove it. If they did not have it, add it
