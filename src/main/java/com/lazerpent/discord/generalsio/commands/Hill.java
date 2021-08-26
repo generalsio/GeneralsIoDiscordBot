@@ -15,7 +15,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -522,7 +521,7 @@ public class Hill {
         }
     }
 
-    @Command(name = {"hof"}, args = {"goth | aoth", "top | seq"}, desc = "Show GoTH or AoTH hall of fame.", perms
+    @Command(name = {"hof"}, args = {"goth | aoth?", "top | seq?", "limit?"}, desc = "Show GoTH or AoTH hall of fame.", perms
             = Constants.Perms.USER)
     public static void handleHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
         Constants.Hill mode;
@@ -557,13 +556,24 @@ public class Hill {
             return;
         }
 
+        int limit = xothOrder.length;
+        if (args.length > 3) {
+            try {
+                limit = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
+                        args[3] + " is not a number.")).queue();
+                return;
+            }
+        }
+
         EmbedBuilder hofEmbed = new EmbedBuilder()
                 .setColor(mode.color)
                 .setTitle(mode.name() + " Hall of Fame")
                 .setDescription(Arrays.stream(xothOrder).<String>mapToObj(
                         a -> "#" + (a + 1) + ": " + getOpponentName(xoths[a].opp, true) + " - " + termLengths[a] +
-                             " challenges (" + DateTimeFormatter.ofPattern("uuuu-MM-dd").format(Instant.ofEpochMilli(
-                                xoths[a].timestamp).atOffset(ZoneOffset.UTC)) + ")").collect(Collectors.joining("\n")));
+                             " challenges (<t:" + 
+                               (xoths[a].timestamp / 1000) + ":D>)").collect(Collectors.joining("\n")));
 
         msg.getChannel().sendMessageEmbeds(hofEmbed.build()).queue();
     }
@@ -697,12 +707,11 @@ public class Hill {
         if (challenges.length == 0) {
             challengeString = "No challenges";
         } else {
-            final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd");
             StringJoiner joiner = new StringJoiner("\n");
             for (int i = 0; i < challenges.length; i++) {
                 final Challenge c = challenges[i];
 
-                String date = dateFormat.format(Instant.ofEpochMilli(c.timestamp).atOffset(ZoneOffset.UTC));
+                String date = "<t:" + (c.timestamp / 1000) + ":D>";
                 String s = "#" + (i+1) + ": vs " + getOpponentName(c.opp, true) + " - ";
 
                 if (c.scoreInc > c.scoreOpp) {
@@ -783,16 +792,16 @@ public class Hill {
 
     public static String formatUsers(Database.User[] users, boolean mention) {
         if (mention)
-            return Arrays.stream(users).map(user -> user.username() + " (<@" + user.discordId() + ">)").collect(Collectors.joining(" + "));
-        return Arrays.stream(users).map(Database.User::username).collect(Collectors.joining(" + "));
+            return Arrays.stream(users).map(user -> user.username() + " (<@" + user.discordId() + ">)").collect(Collectors.joining(" and "));
+        return Arrays.stream(users).map(Database.User::username).collect(Collectors.joining(" and "));
     }
 
     public static String getOpponentName(long[] opp, boolean mention) {
         if (mention)
             return Arrays.stream(opp).mapToObj(id -> Database.getGeneralsName(id) + " (<@" + id + ">)")
-                    .collect(Collectors.joining(" + "));
+                    .collect(Collectors.joining(" and "));
         else
-            return Arrays.stream(opp).mapToObj(Database::getGeneralsName).collect(Collectors.joining(" + "));
+            return Arrays.stream(opp).mapToObj(Database::getGeneralsName).collect(Collectors.joining(" and "));
     }
 
     private static class ChallengeData {
