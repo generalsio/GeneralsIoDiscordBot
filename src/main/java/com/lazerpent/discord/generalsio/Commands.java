@@ -180,7 +180,16 @@ public class Commands extends ListenerAdapter {
         Punishments.disable(msg, cmd);
     }
 
+    /**
+     * Checks if the current guild has an error channel, and if it does send the exception provided to it.
+     * In both cases, the error is also printed to the standard out
+     *
+     * @param e       Throwable (Exception) which has a stack trace to be printed to the error channel (if it exists)
+     * @param g       Guild which may or may not have a error channel (dependent on Constants.GUILD_INFO)
+     * @param context String (which may be empty) representing context of this error, such as command being run at time
+     */
     private static void logIfPresent(Throwable e, Guild g, String context) {
+        e.printStackTrace();
         long channel = Constants.GUILD_INFO.get(g.getIdLong()).errorChannel;
         if (channel != -1) {
             StringWriter write = new StringWriter();
@@ -193,15 +202,23 @@ public class Commands extends ListenerAdapter {
         }
     }
 
+    /**
+     * Checks if the current guild has an error channel, and if it does send the exception provided to it.
+     * In both cases, the error is also printed to the standard out
+     *
+     * @param e Throwable (Exception) which has a stack trace to be printed to the error channel (if it exists)
+     * @param g Guild which may or may not have a error channel (dependent on Constants.GUILD_INFO)
+     */
+    private static void logIfPresent(Exception e, Guild g) {
+        logIfPresent(e, g, "");
+    }
+
     @Override
     public void onReady(@NotNull ReadyEvent event) {
         System.out.println(event.getJDA().getGuilds());
         Hill.init();
     }
 
-    private static void logIfPresent(Exception e, Guild g) {
-        logIfPresent(e, g, "");
-    }
 
     @Override
     public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
