@@ -81,7 +81,7 @@ public class Stats {
     }
 
     @Command(name = {"graph"}, cat = "stat", args = {"add | remove | clear"
-            , "username"}, desc = "Add or remove users from graph.")
+            , "username"}, desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
     public static void handleGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
         if (args.length < 2) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid graph command.")).queue();

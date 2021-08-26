@@ -99,7 +99,7 @@ public class Constants {
 
     public enum Hill {
         GoTH(0, 1, new Color(26, 188, 156)),
-        AoTH(1, 2, new Color(233, 30, 99));
+        AoTH(1, 2, new Color(155, 89, 182));
 
         Hill(int id, int teamSize, Color color) {
             this.id = id;

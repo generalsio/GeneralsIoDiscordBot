@@ -146,9 +146,15 @@ public class Database {
         return -1;
     }
 
-    public record User(long discordId, String username) {
+    public record User(long discordId, String username) implements Comparable<User> {
         public User {
             java.util.Objects.requireNonNull(username);
+        }
+
+        public int compareTo(User u) {
+            if (this.discordId() < u.discordId()) return -1;
+            if (this.discordId() == u.discordId()) return 0;
+            return 1;
         }
 
         public static @Nullable User fromId(long discordId) {

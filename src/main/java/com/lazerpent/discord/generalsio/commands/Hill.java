@@ -271,8 +271,8 @@ public class Hill {
             return;
         }
 
-        long[] tempXothIDs = msg.getMentionedMembers().stream().mapToLong(Member::getIdLong).toArray();
-        Database.User[] tempXoth = Arrays.stream(tempXothIDs).mapToObj(Database.User::fromId).sorted().toArray(Database.User[]::new);
+        long[] tempXothIDs = msg.getMentionedMembers().stream().mapToLong(Member::getIdLong).sorted().toArray();
+        Database.User[] tempXoth = Arrays.stream(tempXothIDs).mapToObj(Database.User::fromId).toArray(Database.User[]::new);
         for (int i =0; i < tempXothIDs.length; i++) {
             if (tempXoth[i] == null) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "<@" + tempXothIDs[i] + "> is not registered.")).queue();
@@ -357,7 +357,8 @@ public class Hill {
         String[] partnerNames = Arrays.stream(partners).mapToObj(Database::getGeneralsName).toArray(String[]::new);
         if (partners.length + 1 != mode.teamSize) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Must specify " + (mode.teamSize - 1) + " partner to challenge AoTH.")).queue();
+                    "Must specify " + (mode.teamSize - 1) + " partner to challenge " + mode.name())).queue();
+            return;
         }
         for (int i = 0; i < partners.length; i++) {
             if (partners[i] == msg.getAuthor().getIdLong()) {
@@ -408,7 +409,7 @@ public class Hill {
                                     Arrays.stream(challengers).mapToObj(String::valueOf).collect(Collectors.joining(
                                             "-"))),
                                     "Accept"),
-                            Button.success(String.format("%s-reject-%s",
+                            Button.danger(String.format("%s-reject-%s",
                                     mode.name().toLowerCase(),
                                     Arrays.stream(challengers).mapToObj(String::valueOf).collect(Collectors.joining(
                                             "-"))),
