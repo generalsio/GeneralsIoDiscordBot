@@ -24,7 +24,6 @@ import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
 import java.awt.*;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -49,11 +48,12 @@ public class ReplayStatistics {
     static {
         try {
             GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-            ge.registerFont(Font.createFont(Font.TRUETYPE_FONT,
-                    new File(Objects.requireNonNull(
-                            Main.class.getClassLoader().getResource("Quicksand-Regular.ttf")).getFile())));
+            final Font font = Font.createFont(Font.TRUETYPE_FONT,
+                    Objects.requireNonNull(Bot.class.getClassLoader().getResourceAsStream("Quicksand-Regular.ttf")));
+            ge.registerFont(font);
         } catch (Exception e) {
             System.out.println("Couldn't load font for graphs: " + e.getMessage());
+            e.printStackTrace();
         }
         String fontName = "Quicksand";
         theme.setExtraLargeFont(new Font(fontName, Font.BOLD, 28));

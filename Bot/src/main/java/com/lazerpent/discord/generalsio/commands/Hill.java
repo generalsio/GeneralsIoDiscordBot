@@ -1,10 +1,6 @@
 package com.lazerpent.discord.generalsio.commands;
 
 import com.lazerpent.discord.generalsio.*;
-import com.lazerpent.discord.generalsio.Commands.Category;
-import com.lazerpent.discord.generalsio.Commands.Command;
-import com.lazerpent.discord.generalsio.Database.Hill.Challenge;
-import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.*;
@@ -22,7 +18,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-@Category(cat = "hill", name = "GoTH/AoTH")
+@Commands.Category(cat = "hill", name = "GoTH/AoTH")
 public class Hill {
     public static final HashMap<Constants.Hill, List<Hill.ChallengeData>> currentChallenges = new HashMap<>();
 
@@ -43,7 +39,8 @@ public class Hill {
         }
         long[] incumbent = terms[0].opp;
         List<String> replayIDs = new ArrayList<>();
-        List<ReplayResult> replays = ReplayStatistics.getReplays(Database.getGeneralsName(incumbent[0]), 1000);
+        List<ReplayStatistics.ReplayResult> replays =
+                ReplayStatistics.getReplays(Database.getGeneralsName(incumbent[0]), 1000);
         Map<ReplayStatistics.ReplayResult, Replay> replayMap = null;
         if (mode == Constants.Hill.AoTH) {
             replayMap = ReplayStatistics.convertReplayFiles(replays);
@@ -60,7 +57,7 @@ public class Hill {
                 c.opp = cdata.opp;
                 c.scoreInc = 0;
                 c.scoreOpp = 0;
-                for (ReplayResult replay : replays) {
+                for (ReplayStatistics.ReplayResult replay : replays) {
                     if (c.scoreInc == (cdata.length + 1) / 2 || c.scoreOpp == (cdata.length + 1) / 2) {
                         break;
                     }
@@ -190,7 +187,7 @@ public class Hill {
         return scoreEmbed(c, mode);
     }
 
-    @Command(name = {"hdel", "hdelete"}, args = {"goth | aoth", "challenge #?", "xoth #?"},
+    @Commands.Command(name = {"hdel", "hdelete"}, args = {"goth | aoth", "challenge #?", "xoth #?"},
             desc = "Delete completed AoTH/GoTH challenge", perms = Constants.Perms.MOD)
     public static void handleGothDel(@NotNull Commands self, @NotNull Message msg, String[] args) {
         if (args.length <= 1) {
@@ -219,14 +216,14 @@ public class Hill {
         long timestamp1;
         long timestamp2 = Long.MAX_VALUE;
         if (xothN == -1) {
-            Challenge[] cs = Database.Hill.lastTerms(mode, 1);
+            Database.Hill.Challenge[] cs = Database.Hill.lastTerms(mode, 1);
             if (cs.length == 0) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No " + mode.name() + "s exist")).queue();
                 return;
             }
             timestamp1 = cs[0].timestamp;
         } else {
-            Challenge[] cs = Database.Hill.firstTerms(mode, xothN + 1);
+            Database.Hill.Challenge[] cs = Database.Hill.firstTerms(mode, xothN + 1);
             if (cs.length == xothN) {
                 timestamp1 = cs[xothN - 1].timestamp;
             } else if (cs.length > xothN) {
@@ -238,14 +235,14 @@ public class Hill {
                 return;
             }
         }
-        Challenge[] challenges = Database.Hill.get(mode, timestamp1, timestamp2);
+        Database.Hill.Challenge[] challenges = Database.Hill.get(mode, timestamp1, timestamp2);
         if (challenges.length < challengeN || challenges.length == 0) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg,
                     mode.name() + " #" + xothN + "'s challenge #" + challengeN + " does not exist")).queue();
             return;
         }
 
-        Challenge challenge;
+        Database.Hill.Challenge challenge;
         if (challengeN == -1) challenge = challenges[challenges.length - 1];
         else challenge = challenges[challengeN];
 
@@ -253,7 +250,7 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(Utils.success(msg, "Challenge Deleted")).queue();
     }
 
-    @Command(name = {"hset", "replace"}, args = {"goth | aoth", "@player", "@partner?"},
+    @Commands.Command(name = {"hset", "replace"}, args = {"goth | aoth", "@player", "@partner?"},
             desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD)
     public static void handleReplace(@NotNull Commands self, @NotNull Message msg, String[] args) {
         if (args.length < 3) {
@@ -292,7 +289,7 @@ public class Hill {
             msg.getGuild().addRoleToMember(challenger.discordId(), role).queue();
         }
 
-        Challenge c = new Challenge();
+        Database.Hill.Challenge c = new Database.Hill.Challenge();
         c.timestamp = Instant.now().toEpochMilli();
         c.type = mode;
         c.scoreInc = 0;
@@ -311,7 +308,7 @@ public class Hill {
                 .build()).queue();
     }
 
-    @Command(name = {"challenge", "hchallenge"}, args = {"goth | aoth", "bestof", "@partner?"},
+    @Commands.Command(name = {"challenge", "hchallenge"}, args = {"goth | aoth", "bestof", "@partner?"},
             desc = "Challenge the current GoTH or AoTH.", perms = Constants.Perms.USER)
     public static void handleChallenge(@NotNull Commands self, @NotNull Message msg, String[] args) {
         // TODO: gather arguments
@@ -456,7 +453,7 @@ public class Hill {
                         Instant.now().getEpochSecond() * 1000, null);
                 curChallenges.add(challenge);
 
-                Challenge[] xoths = Database.Hill.firstTerms(mode, Integer.MAX_VALUE);
+                Database.Hill.Challenge[] xoths = Database.Hill.firstTerms(mode, Integer.MAX_VALUE);
                 long[] incumbent = xoths[xoths.length - 1].opp;
                 int challengeIdx = 0;
                 for (int a = 0; a < xoths.length; a++) {
@@ -522,8 +519,9 @@ public class Hill {
         }
     }
 
-    @Command(name = {"hof"}, args = {"goth | aoth?", "top | seq?", "limit?"}, desc = "Show GoTH or AoTH hall of fame" +
-                                                                                     ".", perms
+    @Commands.Command(name = {"hof"}, args = {"goth | aoth?", "top | seq?", "limit?"}, desc = "Show GoTH or AoTH hall" +
+                                                                                              " of fame" +
+                                                                                              ".", perms
             = Constants.Perms.USER)
     public static void handleHallOfFame(@NotNull Commands self, @NotNull Message msg, String[] args) {
         Constants.Hill mode;
@@ -537,7 +535,7 @@ public class Hill {
             return;
         }
 
-        Challenge[] xoths = Database.Hill.firstTerms(mode, Integer.MAX_VALUE);
+        Database.Hill.Challenge[] xoths = Database.Hill.firstTerms(mode, Integer.MAX_VALUE);
         int[] xothOrder = IntStream.range(0, xoths.length).toArray();
         int[] termLengths = IntStream.range(0, xoths.length)
                 .map(a -> Database.Hill.get(mode, xoths[a].timestamp + 1, a + 1 < xoths.length ?
@@ -584,7 +582,7 @@ public class Hill {
         return Utils.error(msg, "Not a valid hill mode", "`" + s + "` is not a valid hill mode");
     }
 
-    @Command(name = {"hadd"}, args = {"goth | aoth", "score", "opponents"},
+    @Commands.Command(name = {"hadd"}, args = {"goth | aoth", "score", "opponents"},
             desc = "Add entry to GoTH or AoTH.",
             perms = Constants.Perms.MOD)
     public static void handleAdd(@NotNull Commands self, @NotNull Message msg, String[] args) {
@@ -628,7 +626,7 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(logScore(msg.getGuild(), c, Constants.Hill.GoTH)).queue();
     }
 
-    @Command(name = {"hrec", "hrecord"}, args = {"goth | aoth", "index? | mention?"},
+    @Commands.Command(name = {"hrec", "hrecord"}, args = {"goth | aoth", "index? | mention?"},
             desc = "Show the challenge history of the nth GoTH/AoTH, "
                    + "or the latest GoTH/AoTH if no index is provided.",
             perms = Constants.Perms.USER)
@@ -668,7 +666,7 @@ public class Hill {
                 return;
             }
 
-            Challenge[] terms = Database.Hill.xothTerms(mode, mentions);
+            Database.Hill.Challenge[] terms = Database.Hill.xothTerms(mode, mentions);
             if (terms.length == 0) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, Arrays.stream(mentions).<String>mapToObj(x ->
                         "<@" + x + ">").collect(Collectors.joining(" ")) + " " + (mentions.length == 1 ? "has" :
@@ -679,10 +677,10 @@ public class Hill {
             number = Database.Hill.nthTerm(mode, terms[0].timestamp);
         }
 
-        Challenge xoth = null;
+        Database.Hill.Challenge xoth = null;
         long nextTime = Long.MAX_VALUE;
         if (number > 0) {
-            Challenge[] xoths = Database.Hill.firstTerms(mode, number + 1);
+            Database.Hill.Challenge[] xoths = Database.Hill.firstTerms(mode, number + 1);
             if (xoths.length > number - 1) {
                 xoth = xoths[number - 1];
             }
@@ -690,7 +688,7 @@ public class Hill {
                 nextTime = xoths[number].timestamp;
             }
         } else {
-            Challenge[] xoths = Database.Hill.lastTerms(mode, 1);
+            Database.Hill.Challenge[] xoths = Database.Hill.lastTerms(mode, 1);
             if (xoths.length != 0) {
                 xoth = xoths[0];
                 number = Database.Hill.nthTerm(mode, xoth.timestamp);
@@ -703,7 +701,7 @@ public class Hill {
             return;
         }
 
-        Challenge[] challenges = Database.Hill.get(mode, xoth.timestamp + 1, nextTime);
+        Database.Hill.Challenge[] challenges = Database.Hill.get(mode, xoth.timestamp + 1, nextTime);
 
         String challengeString;
         if (challenges.length == 0) {
@@ -711,7 +709,7 @@ public class Hill {
         } else {
             StringJoiner joiner = new StringJoiner("\n");
             for (int i = 0; i < challenges.length; i++) {
-                final Challenge c = challenges[i];
+                final Database.Hill.Challenge c = challenges[i];
 
                 String date = "<t:" + (c.timestamp / 1000) + ":D>";
                 String s = "#" + (i + 1) + ": vs " + getOpponentName(c.opp, true) + " - ";
@@ -735,7 +733,7 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(embed.build()).queue();
     }
 
-    @Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "xoth index", "challenge #"},
+    @Commands.Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "xoth index", "challenge #"},
             desc = "Show the replays of the given goth / challenge number.",
             perms = Constants.Perms.USER)
     public static void handleReplay(@NotNull Commands self, @NotNull Message msg, String[] args) {
@@ -761,7 +759,8 @@ public class Hill {
             return;
         }
 
-        Challenge[] terms = Database.Hill.query().type(mode).change().limit(xothIdx + 1).sort("asc").get();
+        Database.Hill.Challenge[] terms =
+                Database.Hill.query().type(mode).change().limit(xothIdx + 1).sort("asc").get();
         if (terms.length < xothIdx) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No such " + mode.name())).queue();
             return;
@@ -782,14 +781,14 @@ public class Hill {
             return;
         }
 
-        Challenge[] challenges =
+        Database.Hill.Challenge[] challenges =
                 Database.Hill.query().type(mode).from(start).to(end).sort("asc").limit(challengeIdx + 1).get();
         if (challenges.length < challengeIdx + 1) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No such " + mode.name() + " challenge")).queue();
             return;
         }
 
-        Challenge challenge = challenges[challengeIdx];
+        Database.Hill.Challenge challenge = challenges[challengeIdx];
         msg.getChannel().sendMessageEmbeds(scoreEmbed(challenge, mode)).queue();
     }
 

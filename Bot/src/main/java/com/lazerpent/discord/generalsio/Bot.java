@@ -10,7 +10,7 @@ import org.apache.log4j.Logger;
 import javax.security.auth.login.LoginException;
 import java.util.Arrays;
 
-public class Main {
+public class Bot {
     public static void main(String[] args) {
         BasicConfigurator.configure();
         Logger.getRootLogger().setLevel(Level.ERROR);

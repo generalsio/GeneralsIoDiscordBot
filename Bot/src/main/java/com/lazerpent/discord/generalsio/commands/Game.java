@@ -1,8 +1,6 @@
 package com.lazerpent.discord.generalsio.commands;
 
 import com.lazerpent.discord.generalsio.*;
-import com.lazerpent.discord.generalsio.Commands.Category;
-import com.lazerpent.discord.generalsio.Commands.Command;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
@@ -17,7 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-@Category(cat = "game", name = "Game")
+@Commands.Category(cat = "game", name = "Game")
 public class Game {
     private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server,
                                            @NotNull String link, @Nullable String map, int speed) {
@@ -71,21 +69,23 @@ public class Game {
                 .build();
     }
 
-    @Command(name = {"na", "custom", "private"}, args = {"code?", "map?"}, desc = "Generate match on NA servers",
+    @Commands.Command(name = {"na", "custom", "private"}, args = {"code?", "map?"}, desc = "Generate match on NA " +
+                                                                                           "servers",
             perms = Constants.Perms.USER)
     public static void handleNA(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         customLink(msg, cmd, Constants.Server.NA);
     }
 
-    @Command(name = {"eu", "eucustom", "euprivate"}, args = {"code?", "map?"}, desc = "Generate match on EU " +
-                                                                                      "servers", perms =
+    @Commands.Command(name = {"eu", "eucustom", "euprivate"}, args = {"code?", "map?"}, desc = "Generate match on EU " +
+                                                                                               "servers", perms =
             Constants.Perms.USER)
     public static void handleEU(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         customLink(msg, cmd, Constants.Server.EU);
     }
 
-    @Command(name = {"bot", "botcustom", "botprivate"}, args = {"code?", "map?"}, desc = "Generate match on Bot " +
-                                                                                         "servers", perms =
+    @Commands.Command(name = {"bot", "botcustom", "botprivate"}, args = {"code?", "map?"}, desc = "Generate match on " +
+                                                                                                  "Bot " +
+                                                                                                  "servers", perms =
             Constants.Perms.USER)
     public static void handleBOT(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         customLink(msg, cmd, Constants.Server.BOT);
@@ -99,14 +99,14 @@ public class Game {
         msg.getChannel().sendMessage(createLinkEmbed(msg, server, link, map, 1)).queue();
     }
 
-    @Command(name = {"plots"}, args = {"code?"}, desc = "Create a 4x Plots Lazerpent game", perms =
+    @Commands.Command(name = {"plots"}, args = {"code?"}, desc = "Create a 4x Plots Lazerpent game", perms =
             Constants.Perms.USER)
     public static void handlePlots(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         String link = cmd.length > 1 ? cmd[1] : "Plots";
         msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, link, "Plots Lazerpent", 4)).queue();
     }
 
-    @Command(name = {"ping"}, desc = "Ping role", perms = Constants.Perms.USER)
+    @Commands.Command(name = {"ping"}, desc = "Ping role", perms = Constants.Perms.USER)
     public static void handlePing(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
@@ -127,7 +127,7 @@ public class Game {
         msg.getChannel().sendMessage(Objects.requireNonNull(role).getAsMention() + " (pinged by " + Objects.requireNonNull(msg.getMember()).getAsMention() + ")").queue();
     }
 
-    @Command(name = {"setuproles"}, desc = "Setup roles menu", perms = Constants.Perms.MOD)
+    @Commands.Command(name = {"setuproles"}, desc = "Setup roles menu", perms = Constants.Perms.MOD)
     public static void handleSetupRoles(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 

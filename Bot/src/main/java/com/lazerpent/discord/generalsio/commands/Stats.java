@@ -1,8 +1,6 @@
 package com.lazerpent.discord.generalsio.commands;
 
 import com.lazerpent.discord.generalsio.Commands;
-import com.lazerpent.discord.generalsio.Commands.Category;
-import com.lazerpent.discord.generalsio.Commands.Command;
 import com.lazerpent.discord.generalsio.Constants;
 import com.lazerpent.discord.generalsio.ReplayStatistics;
 import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
@@ -28,7 +26,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-@Category(cat = "stat", name = "Stats")
+@Commands.Category(cat = "stat", name = "Stats")
 public class Stats {
     private static final Semaphore REQUEST_LIMITER = new Semaphore(20);
     private static final AtomicInteger REQUESTED_PLAYERS = new AtomicInteger();
@@ -80,7 +78,7 @@ public class Stats {
         return username;
     }
 
-    @Command(name = {"graph"}, cat = "stat", args = {"add | remove | clear"
+    @Commands.Command(name = {"graph"}, cat = "stat", args = {"add | remove | clear"
             , "username"}, desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
     public static void handleGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
         if (args.length < 2) {
@@ -161,7 +159,7 @@ public class Stats {
         REQUESTED_PLAYERS.addAndGet(-decrease);
     }
 
-    @Command(name = {"showgraph"}, cat = "stat", args = {"gameMode",
+    @Commands.Command(name = {"showgraph"}, cat = "stat", args = {"gameMode",
             "games | time", "bucketSize?", "starMin?"}, desc = "Graph statistics of all stored players, either " +
                                                                "over time or games played.", perms =
             Constants.Perms.USER)
@@ -256,7 +254,7 @@ public class Stats {
         });
     }
 
-    @Command(name = {"starhist"}, cat = "stat", args = {
+    @Commands.Command(name = {"starhist"}, cat = "stat", args = {
             "username"}, desc = "Graph 1v1 win rate of a player against star rating of opponents.", perms =
             Constants.Perms.USER)
     public static void handleStarHist(@NotNull Commands self, @NotNull Message msg, String[] args) {
@@ -297,7 +295,7 @@ public class Stats {
         return bytes;
     }
 
-    @Command(name = {"winrecord"}, cat = "stat", args = {"username1",
+    @Commands.Command(name = {"winrecord"}, cat = "stat", args = {"username1",
             "username2"}, desc = "Show wins and losses of one player against another player in 1v1 matches.",
             perms = Constants.Perms.USER)
     public static void handleWinRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
@@ -364,7 +362,7 @@ public class Stats {
         }));
     }
 
-    @Command(name = {"getstats"}, cat = "stat", args = {
+    @Commands.Command(name = {"getstats"}, cat = "stat", args = {
             "username"}, desc = "Calculate a player's stats.", perms = Constants.Perms.USER)
     public static void handleGetStats(@NotNull Commands self, @NotNull Message msg, String[] args) {
         String username = checkIfGraphRunnable(msg, args);
@@ -386,7 +384,7 @@ public class Stats {
                 }));
     }
 
-    @Command(name = {"stats2v2"}, cat = "stat", args = {
+    @Commands.Command(name = {"stats2v2"}, cat = "stat", args = {
             "username"}, desc = "Calculate 2v2 win rate stats from recent games.", perms = Constants.Perms.USER)
     public static void handleStats2v2(@NotNull Commands self, @NotNull Message msg, String[] args) {
         if (args.length < 2) {

@@ -1,35 +1,31 @@
 package com.lazerpent.discord.generalsio.commands;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import org.jetbrains.annotations.NotNull;
-
 import com.lazerpent.discord.generalsio.Commands;
 import com.lazerpent.discord.generalsio.Constants;
 import com.lazerpent.discord.generalsio.Database;
 import com.lazerpent.discord.generalsio.Utils;
-import com.lazerpent.discord.generalsio.Commands.Category;
-import com.lazerpent.discord.generalsio.Commands.Command;
-
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
+import org.jetbrains.annotations.NotNull;
 
-@Category(cat = "user", name = "Users")
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+@Commands.Category(cat = "user", name = "Users")
 public class Users {
     private static boolean nickWupey = false;
-    
+
     public static boolean getNickWupey() {
         return nickWupey;
     }
-    
-    @Command(name = {"profile", "user"}, args = {"username? | @mention?"}, cat = "user", perms =
+
+    @Commands.Command(name = {"profile", "user"}, args = {"username? | @mention?"}, cat = "user", perms =
             Constants.Perms.USER, desc = "Show username of user, or vice versa")
     public static void handleUser(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         long discordId;
@@ -79,7 +75,7 @@ public class Users {
                         .build()).queue();
     }
 
-    @Command(name = {"addname"}, args = {"username"}, cat = "user", desc = "Register generals.io username")
+    @Commands.Command(name = {"addname"}, args = {"username"}, cat = "user", desc = "Register generals.io username")
     public static void handleAddName(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
@@ -117,18 +113,23 @@ public class Users {
                 .setDescription(msg.getMember().getAsMention() + " is now generals.io user **" + username + "**").build()).queue();
     }
 
-    @Command(name = {"nickwupey"}, cat = "user", desc = "Bully Wuped", perms = Constants.Perms.MOD)
+    @Commands.Command(name = {"nickwupey"}, cat = "user", desc = "Bully Wuped", perms = Constants.Perms.MOD)
     public static void handleNickWupey(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+        if (msg.getAuthor().getIdLong() == 175430325755838464L) {
+            Utils.error(msg, "You can't bully yourself!");
+            return;
+        }
         nickWupey = !nickWupey;
         msg.getChannel().sendMessage("Switched auto-nick to " + nickWupey).queue();
         if (nickWupey) {
             msg.getGuild().modifyNickname(Objects.requireNonNull(msg.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
         }
     }
-    
-    @Command(name = {"setname"}, cat = "user", args = {"@mention", "username"}, desc = "Change generals.io " +
-                                                                                       "username of user", perms
-            = Constants.Perms.MOD)
+
+    @Commands.Command(name = {"setname"}, cat = "user", args = {"@mention", "username"}, desc = "Change generals.io " +
+                                                                                                "username of user",
+            perms
+                    = Constants.Perms.MOD)
     public static void handleSetName(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
         if (msg.getMentionedMembers().size() == 0) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must mention the member to update")).queue();
