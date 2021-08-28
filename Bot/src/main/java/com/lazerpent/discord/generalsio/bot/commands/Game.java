@@ -1,6 +1,6 @@
-package com.lazerpent.discord.generalsio.commands;
+package com.lazerpent.discord.generalsio.bot.commands;
 
-import com.lazerpent.discord.generalsio.*;
+import com.lazerpent.discord.generalsio.bot.*;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;

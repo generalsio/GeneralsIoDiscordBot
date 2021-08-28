@@ -1,4 +1,4 @@
-package com.lazerpent.discord.generalsio;
+package com.lazerpent.discord.generalsio.bot;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -1,4 +1,4 @@
-package com.lazerpent.discord.generalsio;
+package com.lazerpent.discord.generalsio.dependencies;
 
 import java.io.IOException;
 import java.io.InputStream;

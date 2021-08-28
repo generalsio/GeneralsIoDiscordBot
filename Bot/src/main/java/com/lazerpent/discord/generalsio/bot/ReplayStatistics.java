@@ -1,9 +1,10 @@
-package com.lazerpent.discord.generalsio;
+package com.lazerpent.discord.generalsio.bot;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import com.lazerpent.discord.generalsio.dependencies.LZStringImpl;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;

@@ -1,10 +1,10 @@
-package com.lazerpent.discord.generalsio.commands;
+package com.lazerpent.discord.generalsio.bot.commands;
 
-import com.lazerpent.discord.generalsio.Commands;
-import com.lazerpent.discord.generalsio.Constants;
-import com.lazerpent.discord.generalsio.ReplayStatistics;
-import com.lazerpent.discord.generalsio.ReplayStatistics.ReplayResult;
-import com.lazerpent.discord.generalsio.Utils;
+import com.lazerpent.discord.generalsio.bot.Commands;
+import com.lazerpent.discord.generalsio.bot.Constants;
+import com.lazerpent.discord.generalsio.bot.ReplayStatistics;
+import com.lazerpent.discord.generalsio.bot.ReplayStatistics.ReplayResult;
+import com.lazerpent.discord.generalsio.bot.Utils;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;

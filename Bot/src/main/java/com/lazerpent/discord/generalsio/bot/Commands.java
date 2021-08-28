@@ -1,9 +1,9 @@
-package com.lazerpent.discord.generalsio;
+package com.lazerpent.discord.generalsio.bot;
 
-import com.lazerpent.discord.generalsio.commands.Game;
-import com.lazerpent.discord.generalsio.commands.Hill;
-import com.lazerpent.discord.generalsio.commands.Stats;
-import com.lazerpent.discord.generalsio.commands.Users;
+import com.lazerpent.discord.generalsio.bot.commands.Game;
+import com.lazerpent.discord.generalsio.bot.commands.Hill;
+import com.lazerpent.discord.generalsio.bot.commands.Stats;
+import com.lazerpent.discord.generalsio.bot.commands.Users;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
