@@ -67,14 +67,18 @@ public class Stats {
 
     @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
     public static void handleGraph(@NotNull Message msg,
-                                   @Required @Selection(opt = {"add", "remove", "clear"}) String option,
+                                   @Required @Selection(opt = {"add", "remove"}) String option,
                                    @Required String username) {
         switch (option) {
             case "add" -> addToGraph(msg, username);
             case "remove" -> removeFromGraph(msg, username);
-            case "clear" -> clearGraph(msg);
             default -> msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid graph command.")).queue();
         }
+    }
+
+    @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
+    public static void handleGraph(@NotNull Message msg, @Required @Selection(opt = {"clear"}) String option) {
+        clearGraph(msg);
     }
 
     public static void addToGraph(@NotNull Message msg, String username) {
