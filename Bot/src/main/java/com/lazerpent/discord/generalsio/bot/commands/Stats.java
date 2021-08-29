@@ -1,6 +1,9 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
 import com.lazerpent.discord.generalsio.bot.Commands;
+import com.lazerpent.discord.generalsio.bot.Commands.Command;
+import com.lazerpent.discord.generalsio.bot.Commands.Required;
+import com.lazerpent.discord.generalsio.bot.Commands.Selection;
 import com.lazerpent.discord.generalsio.bot.Constants;
 import com.lazerpent.discord.generalsio.bot.ReplayStatistics;
 import com.lazerpent.discord.generalsio.bot.ReplayStatistics.ReplayResult;
@@ -21,9 +24,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.MatchResult;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Commands.Category(cat = "stat", name = "Stats")
@@ -65,37 +65,19 @@ public class Stats {
         return statEmbed.build();
     }
 
-    private static String checkIfGraphRunnable(Message msg, String[] args) {
-        if (args.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide a username.")).queue();
-            return null;
-        }
-        String username = Arrays.stream(args).skip(1).collect(Collectors.joining(" "));
-        if (username.length() > 18) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Provided username is too long.")).queue();
-            return null;
-        }
-        return username;
-    }
-
-    @Commands.Command(name = {"graph"}, cat = "stat", args = {"add | remove | clear"
-            , "username"}, desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
-    public static void handleGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        if (args.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid graph command.")).queue();
-            return;
-        }
-        switch (args[1]) {
-            case "add" -> addToGraph(msg, Arrays.copyOfRange(args, 1, args.length));
-            case "remove" -> removeFromGraph(msg, Arrays.copyOfRange(args, 1, args.length));
-            case "clear" -> clearGraph(msg, Arrays.copyOfRange(args, 1, args.length));
+    @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
+    public static void handleGraph(@NotNull Message msg,
+                                   @Required @Selection(opt = {"add", "remove", "clear"}) String option,
+                                   @Required String username) {
+        switch (option) {
+            case "add" -> addToGraph(msg, username);
+            case "remove" -> removeFromGraph(msg, username);
+            case "clear" -> clearGraph(msg);
             default -> msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Invalid graph command.")).queue();
         }
     }
 
-    public static void addToGraph(@NotNull Message msg, String[] args) {
-        String username = checkIfGraphRunnable(msg, args);
-        if (username == null) return;
+    public static void addToGraph(@NotNull Message msg, String username) {
 
         if (!REQUEST_LIMITER.tryAcquire()) {
             msg.getChannel()
@@ -115,7 +97,7 @@ public class Stats {
             REQUESTED_PLAYERS.incrementAndGet();
         }
         msg.getChannel().sendMessageEmbeds(
-                new EmbedBuilder().setTitle("Loading Stats").setDescription("It might take a few moments.").build())
+                        new EmbedBuilder().setTitle("Loading Stats").setDescription("It might take a few moments.").build())
                 .queue((loadMsg) -> EXECUTOR.execute(() -> {
                     List<ReplayResult> replays = ReplayStatistics.addPlayerToGraph(username);
                     if (replays == null) {
@@ -131,9 +113,8 @@ public class Stats {
                 }));
     }
 
-    public static void removeFromGraph(@NotNull Message msg, String[] args) {
-        String username = checkIfGraphRunnable(msg, args);
-        if (username == null) return;
+    public static void removeFromGraph(@NotNull Message msg, String username) {
+
         if (!ReplayStatistics.removePlayerFromGraph(username)) {
             msg.getChannel()
                     .sendMessageEmbeds(
@@ -142,78 +123,49 @@ public class Stats {
             return;
         }
         msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Successful Removal")
-                .setDescription("Removed " + username + " from graph.").setColor(Constants.Colors.SUCCESS).build())
+                        .setDescription("Removed " + username + " from graph.").setColor(Constants.Colors.SUCCESS).build())
                 .queue();
         REQUESTED_PLAYERS.decrementAndGet();
     }
 
-    public static void clearGraph(@NotNull Message msg, String[] args) {
-        if (args.length > 1) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "This command has no arguments.")).queue();
-            return;
-        }
+    public static void clearGraph(@NotNull Message msg) {
         int decrease = ReplayStatistics.clearGraph();
         msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Successful Removal")
-                .setDescription("Cleared all users from graph.").setColor(Constants.Colors.SUCCESS).build())
+                        .setDescription("Cleared all users from graph.").setColor(Constants.Colors.SUCCESS).build())
                 .queue();
         REQUESTED_PLAYERS.addAndGet(-decrease);
     }
 
-    @Commands.Command(name = {"showgraph"}, cat = "stat", args = {"gameMode",
-            "games | time", "bucketSize?", "starMin?"}, desc = "Graph statistics of all stored players, either " +
-                                                               "over time or games played.", perms =
-            Constants.Perms.USER)
-    public static void handleShowGraph(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        if (args.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must specify a game mode.")).queue();
+    @Command(name = {"showgraph"}, cat = "stat", perms = Constants.Perms.USER,
+            desc = "Graph statistics of all stored players, either over time or games played.")
+    public static void handleShowGraph(@NotNull Message msg,
+                                       @Required @Selection(opt = {"1v1", "ffa"}) String mode,
+                                       @Required @Selection(opt = {"game", "time"}) String graph,
+                                       Integer bucketSize, Integer starMin) {
+        if (bucketSize == null) {
+            bucketSize = 200;
+        }
+        if (bucketSize < 0) {
+            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Bucket size must be positive.")).queue();
             return;
         }
-        String gameModeArg = args[1].toLowerCase();
-        if (args.length < 3) {
-            msg.getChannel()
-                    .sendMessageEmbeds(
-                            Utils.error(msg, "You must specify whether you will graph over time or games played."))
-                    .queue();
-            return;
-        }
-        if (args.length > 5) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Too many arguments.")).queue();
-            return;
-        }
-        String xAxisArg = args[2].toLowerCase();
-        int bucketSize = 200;
-        if (args.length > 3) {
-            try {
-                bucketSize = Integer.parseInt(args[3]);
-            } catch (NumberFormatException e) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Bucket size must be an integer.")).queue();
-                return;
-            }
-            if (bucketSize <= 0) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Bucket size must be positive.")).queue();
-                return;
-            }
-        }
-        int starMin = 0;
-        if (args.length > 4) {
-            if (gameModeArg.equals("ffa")) {
+
+        if (starMin != null) {
+            if (mode.equals("ffa")) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Cannot set star minimum for FFA games.")).queue();
-                return;
-            }
-            try {
-                starMin = Integer.parseInt(args[4]);
-            } catch (NumberFormatException e) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Star minimum must be an integer.")).queue();
                 return;
             }
             if (starMin <= 0) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Star minimum must be positive.")).queue();
                 return;
             }
+        } else {
+            starMin = 0;
         }
+
         ReplayStatistics.GameMode gameMode;
         ReplayStatistics.XAxisOption xAxis;
-        switch (gameModeArg) {
+        switch (mode) {
             case "1v1" -> gameMode = ReplayStatistics.GameMode.ONE_V_ONE;
             case "ffa" -> gameMode = ReplayStatistics.GameMode.FFA;
             default -> {
@@ -221,7 +173,7 @@ public class Stats {
                 return;
             }
         }
-        switch (xAxisArg) {
+        switch (graph) {
             case "time" -> xAxis = ReplayStatistics.XAxisOption.TIME;
             case "games" -> xAxis = ReplayStatistics.XAxisOption.GAMES_PLAYED;
             default -> {
@@ -254,12 +206,9 @@ public class Stats {
         });
     }
 
-    @Commands.Command(name = {"starhist"}, cat = "stat", args = {
-            "username"}, desc = "Graph 1v1 win rate of a player against star rating of opponents.", perms =
-            Constants.Perms.USER)
-    public static void handleStarHist(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        String username = checkIfGraphRunnable(msg, args);
-        if (username == null) return;
+    @Command(name = {"starhist"}, cat = "stat", perms = Constants.Perms.USER,
+            desc = "Graph 1v1 win rate of a player against star rating of opponents.")
+    public static void handleStarHist(@NotNull Message msg, @Required String username) {
         if (!REQUEST_LIMITER.tryAcquire()) {
             msg.getChannel()
                     .sendMessageEmbeds(
@@ -268,7 +217,7 @@ public class Stats {
             return;
         }
         msg.getChannel().sendMessageEmbeds(
-                new EmbedBuilder().setTitle("Loading graph").setDescription("It might take a few moments.").build())
+                        new EmbedBuilder().setTitle("Loading graph").setDescription("It might take a few moments.").build())
                 .queue((loadMsg) -> EXECUTOR.execute(() -> {
                     JFreeChart chart = ReplayStatistics.graphStarHistogram(username);
                     ByteArrayOutputStream bytes = renderGraph(msg, chart);
@@ -295,25 +244,9 @@ public class Stats {
         return bytes;
     }
 
-    @Commands.Command(name = {"winrecord"}, cat = "stat", args = {"username1",
-            "username2"}, desc = "Show wins and losses of one player against another player in 1v1 matches.",
-            perms = Constants.Perms.USER)
-    public static void handleWinRecord(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        String argString = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
-        Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(argString);
-        List<String> uArgs = match.results()
-                .map(MatchResult::group)
-                .collect(Collectors.toCollection(ArrayList::new));
-        if (uArgs.size() > 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide exactly 2 usernames.")).queue();
-            return;
-        }
-        String username1 = uArgs.get(0);
-        String username2 = uArgs.get(1);
-        if (username1.length() > 18 || username2.length() > 18) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Provided username is too long.")).queue();
-            return;
-        }
+    @Command(name = {"winrecord"}, cat = "stat", perms = Constants.Perms.USER,
+            desc = "Show wins and losses of one player against another player in 1v1 matches.")
+    public static void handleWinRecord(@NotNull Message msg, @Required String username1, @Required String username2) {
         if (!REQUEST_LIMITER.tryAcquire()) {
             msg.getChannel()
                     .sendMessageEmbeds(
@@ -362,11 +295,8 @@ public class Stats {
         }));
     }
 
-    @Commands.Command(name = {"getstats"}, cat = "stat", args = {
-            "username"}, desc = "Calculate a player's stats.", perms = Constants.Perms.USER)
-    public static void handleGetStats(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        String username = checkIfGraphRunnable(msg, args);
-        if (username == null) return;
+    @Command(name = {"getstats"}, cat = "stat", desc = "Calculate a player's stats.", perms = Constants.Perms.USER)
+    public static void handleGetStats(@NotNull Message msg, @Required String username) {
         if (!REQUEST_LIMITER.tryAcquire()) {
             msg.getChannel()
                     .sendMessageEmbeds(
@@ -375,7 +305,7 @@ public class Stats {
             return;
         }
         msg.getChannel().sendMessageEmbeds(
-                new EmbedBuilder().setTitle("Loading Stats").setDescription("It might take a few moments.").build())
+                        new EmbedBuilder().setTitle("Loading Stats").setDescription("It might take a few moments.").build())
                 .queue((loadMsg) -> EXECUTOR.execute(() -> {
                     List<ReplayResult> replays = ReplayStatistics.getReplays(username);
                     loadMsg.delete().complete();
@@ -384,18 +314,9 @@ public class Stats {
                 }));
     }
 
-    @Commands.Command(name = {"stats2v2"}, cat = "stat", args = {
-            "username"}, desc = "Calculate 2v2 win rate stats from recent games.", perms = Constants.Perms.USER)
-    public static void handleStats2v2(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        if (args.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide a username.")).queue();
-            return;
-        }
-        String username = Arrays.stream(args).skip(1).collect(Collectors.joining(" "));
-        if (username.length() > 18) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Provided username is too long.")).queue();
-            return;
-        }
+    @Command(name = {"stats2v2"}, cat = "stat", desc = "Calculate 2v2 win rate stats from recent games.", perms =
+            Constants.Perms.USER)
+    public static void handleStats2v2(@NotNull Message msg, @Required String username) {
         if (!REQUEST_LIMITER.tryAcquire()) {
             msg.getChannel()
                     .sendMessageEmbeds(

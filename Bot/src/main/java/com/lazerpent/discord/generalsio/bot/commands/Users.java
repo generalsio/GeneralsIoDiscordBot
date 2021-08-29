@@ -1,6 +1,8 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
 import com.lazerpent.discord.generalsio.bot.Commands;
+import com.lazerpent.discord.generalsio.bot.Commands.Command;
+import com.lazerpent.discord.generalsio.bot.Commands.Required;
 import com.lazerpent.discord.generalsio.bot.Constants;
 import com.lazerpent.discord.generalsio.bot.Database;
 import com.lazerpent.discord.generalsio.bot.Utils;
@@ -25,9 +27,9 @@ public class Users {
         return nickWupey;
     }
 
-    @Commands.Command(name = {"profile", "user"}, args = {"username? | @mention?"}, cat = "user", perms =
-            Constants.Perms.USER, desc = "Show username of user, or vice versa")
-    public static void handleUser(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    //    @Command(name = {"profile", "user"}, args = {"username? | @mention?"}, cat = "user", perms =
+//            Constants.Perms.USER, desc = "Show username of user, or vice versa")
+    public static void handleUser(@NotNull Message msg, String[] cmd) {
         long discordId;
         String name;
 
@@ -75,24 +77,16 @@ public class Users {
                         .build()).queue();
     }
 
-    @Commands.Command(name = {"addname"}, args = {"username"}, cat = "user", desc = "Register generals.io username")
-    public static void handleAddName(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    @Command(name = {"addname"}, cat = "user", desc = "Register generals.io username")
+    public static void handleAddName(@NotNull Message msg, @Required String username) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
-        if (cmd.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Missing username")).queue();
-            return;
-        }
-        String username;
-        if ((username = Database.getGeneralsName(Objects.requireNonNull(msg.getMember()).getIdLong())) != null) {
+        if (Database.getGeneralsName(Objects.requireNonNull(msg.getMember()).getIdLong()) != null) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You're already registered as **" + username +
                                                                 "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
                                                                 "to change your username.")).queue();
             return;
         }
-
-        //Get the generals.io username, skipping the messaged name
-        username = Arrays.stream(cmd).skip(1).collect(Collectors.joining(" "));
 
         long l;
         if ((l = Database.getDiscordId(username)) != -1) {
@@ -113,8 +107,8 @@ public class Users {
                 .setDescription(msg.getMember().getAsMention() + " is now generals.io user **" + username + "**").build()).queue();
     }
 
-    @Commands.Command(name = {"nickwupey"}, cat = "user", desc = "Bully Wuped", perms = Constants.Perms.MOD)
-    public static void handleNickWupey(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    @Command(name = {"nickwupey"}, cat = "user", desc = "Bully Wuped", perms = Constants.Perms.MOD)
+    public static void handleNickWupey(@NotNull Message msg) {
         if (msg.getAuthor().getIdLong() == 175430325755838464L) {
             Utils.error(msg, "You can't bully yourself!");
             return;
@@ -126,39 +120,20 @@ public class Users {
         }
     }
 
-    @Commands.Command(name = {"setname"}, cat = "user", args = {"@mention", "username"}, desc = "Change generals.io " +
-                                                                                                "username of user",
-            perms
-                    = Constants.Perms.MOD)
-    public static void handleSetName(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        if (msg.getMentionedMembers().size() == 0) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must mention the member to update")).queue();
-            return;
-        }
-
-        if (cmd.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide the generals.io username to " +
-                                                                "update")).queue();
-            return;
-        }
-
-        Member m = msg.getMentionedMembers().get(0);
-        String tmp = m.getEffectiveName();
-        int a = tmp.length();
-        tmp = tmp.replaceAll(" ", "");
-        a -= tmp.length();
-        String name = Arrays.stream(cmd).skip(2 + a).collect(Collectors.joining(" "));
-
-        if (Database.noMatch(m.getIdLong(), name)) {
-            Database.addDiscordGenerals(m.getIdLong(), name);
+    @Command(name = {"setname"}, cat = "user", desc = "Change generals.io username of user", perms =
+            Constants.Perms.MOD)
+    public static void handleSetName(@NotNull Message msg, @Required Member member, @Required String username) {
+        if (Database.noMatch(member.getIdLong(), username)) {
+            Database.addDiscordGenerals(member.getIdLong(), username);
         } else {
-            Database.updateDiscordGenerals(m.getIdLong(), m.getIdLong(), name);
+            Database.updateDiscordGenerals(member.getIdLong(), member.getIdLong(), username);
         }
         msg.getChannel().sendMessage(new MessageBuilder()
-                .setContent(m.getAsMention())
+                .setContent(member.getAsMention())
                 .setEmbeds(
                         new EmbedBuilder().setTitle("Username Updated").setColor(Constants.Colors.SUCCESS)
-                                .setDescription(m.getAsMention() + " is now generals.io user **" + name + "**").build()).build()).queue();
+                                .setDescription(member.getAsMention() + " is now generals.io user **" + username +
+                                                "**").build()).build()).queue();
     }
 
 }

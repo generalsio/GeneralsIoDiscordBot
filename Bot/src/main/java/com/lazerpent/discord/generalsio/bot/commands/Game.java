@@ -11,7 +11,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -69,45 +68,41 @@ public class Game {
                 .build();
     }
 
-    @Commands.Command(name = {"na", "custom", "private"}, args = {"code?", "map?"}, desc = "Generate match on NA " +
-                                                                                           "servers",
+    @Commands.Command(name = {"na", "custom", "private"}, desc = "Generate match on NA servers",
             perms = Constants.Perms.USER)
-    public static void handleNA(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        customLink(msg, cmd, Constants.Server.NA);
+    public static void handleNA(@NotNull Message msg, String code, String map, Integer speed) {
+        customLink(msg, Constants.Server.NA, code, map, speed);
     }
 
-    @Commands.Command(name = {"eu", "eucustom", "euprivate"}, args = {"code?", "map?"}, desc = "Generate match on EU " +
-                                                                                               "servers", perms =
+    @Commands.Command(name = {"eu", "eucustom", "euprivate"}, desc = "Generate match on EU servers", perms =
             Constants.Perms.USER)
-    public static void handleEU(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        customLink(msg, cmd, Constants.Server.EU);
+    public static void handleEU(@NotNull Message msg, String code, String map, Integer speed) {
+        customLink(msg, Constants.Server.EU, code, map, speed);
     }
 
-    @Commands.Command(name = {"bot", "botcustom", "botprivate"}, args = {"code?", "map?"}, desc = "Generate match on " +
-                                                                                                  "Bot " +
-                                                                                                  "servers", perms =
+    @Commands.Command(name = {"bot", "botcustom", "botprivate"}, desc = "Generate match on Bot servers", perms =
             Constants.Perms.USER)
-    public static void handleBOT(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        customLink(msg, cmd, Constants.Server.BOT);
+    public static void handleBOT(@NotNull Message msg, String code, String map, Integer speed) {
+        customLink(msg, Constants.Server.BOT, code, map, speed);
     }
 
-    private static void customLink(@NotNull Message msg, @NotNull String[] cmd, @NotNull Constants.Server server) {
-        String link = cmd.length > 1 && cmd[1].matches("^[\\d\\w]+$") ? cmd[1] :
+    private static void customLink(@NotNull Message msg, @NotNull Constants.Server server, String code, String map,
+                                   Integer speed) {
+        String link = code != null && code.matches("^[\\d\\w]+$") ? code :
                 Long.toString((long) (Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
-        String map = cmd.length > 2 ? String.join(" ", Arrays.asList(cmd).subList(2, cmd.length)) : null;
         if (map != null && (map.equals("-") || map.equals("."))) map = null;
-        msg.getChannel().sendMessage(createLinkEmbed(msg, server, link, map, 1)).queue();
+        msg.getChannel().sendMessage(createLinkEmbed(msg, server, link, map,
+                speed != null && (speed == 2 || speed == 3 || speed == 4) ? speed : 1)).queue();
     }
 
-    @Commands.Command(name = {"plots"}, args = {"code?"}, desc = "Create a 4x Plots Lazerpent game", perms =
-            Constants.Perms.USER)
-    public static void handlePlots(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        String link = cmd.length > 1 ? cmd[1] : "Plots";
-        msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, link, "Plots Lazerpent", 4)).queue();
+    @Commands.Command(name = {"plots"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
+    public static void handlePlots(@NotNull Message msg, String code) {
+        msg.getChannel().sendMessage(createLinkEmbed(msg, Constants.Server.NA, code == null ? "Plots" : code
+                , "Plots Lazerpent", 4)).queue();
     }
 
     @Commands.Command(name = {"ping"}, desc = "Ping role", perms = Constants.Perms.USER)
-    public static void handlePing(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    public static void handlePing(@NotNull Message msg) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
         Constants.Mode mode = GUILD_INFO.channelToMode(msg.getChannel().getIdLong());
@@ -128,7 +123,7 @@ public class Game {
     }
 
     @Commands.Command(name = {"setuproles"}, desc = "Setup roles menu", perms = Constants.Perms.MOD)
-    public static void handleSetupRoles(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    public static void handleSetupRoles(@NotNull Message msg) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
         StringBuilder sb = new StringBuilder();

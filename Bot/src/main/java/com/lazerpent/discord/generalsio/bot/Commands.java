@@ -7,6 +7,7 @@ import com.lazerpent.discord.generalsio.bot.commands.Users;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.events.ReadyEvent;
@@ -29,13 +30,22 @@ import java.lang.annotation.Target;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.regex.MatchResult;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 public class Commands extends ListenerAdapter {
 
     static final String PREFIX = "!";
+
     // Maps holding all command methods.
-    private static final Map<String, Method> commands = new HashMap<>();
+    private static final Map<String, List<CommandMethod>> commands = new HashMap<>();
+
     // Maps holding all categories that have their own class.
     private static final Map<String, Category> categories = new HashMap<>();
 
@@ -51,94 +61,158 @@ public class Commands extends ListenerAdapter {
             }
         }
 
+        BiFunction<String, String, IllegalStateException> exception =
+                (error, name) -> new IllegalStateException("Invalid Command Handler Method: " + error + ", " + name);
+
+
         for (Method method : methods) {
             Command cmd = method.getAnnotation(Command.class);
-            if (cmd != null) {
-                if (!method.getName().startsWith("handle")) {
-                    throw new IllegalStateException("invalid command handler method: " + method.getName());
-                }
-
-                if (!(Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 3
-                      && method.getParameterTypes()[0].equals(Commands.class)
-                      && method.getParameterTypes()[1].equals(Message.class)
-                      && method.getParameterTypes()[2].equals(String[].class))) {
-                    throw new IllegalStateException(
-                            "invalid command handler method method: bad signature: " + method.getName());
-                }
-
-                for (String name : cmd.name()) {
-                    commands.put(name, method);
-                }
-            }
-        }
-    }
-
-    public Commands() {
-//        feedBack = new Feedback();
-    }
-
-    @Command(name = {"help"}, args = {"perms"}, desc = "How to use this bot")
-    public static void handleHelp(@NotNull Commands self, @NotNull Message msg, String[] args) {
-        int perms = Constants.Perms.get(Objects.requireNonNull(msg.getMember()));
-        if (args.length > 1) {
-            try {
-                perms = Integer.parseInt(args[1]);
-                if (perms < 0 || perms > 2) {
-                    throw new Exception();
-                }
-            } catch (Exception err) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + args[1] + "' is not number between 0 and " +
-                                                                    "2")).queue();
-                return;
-            }
-        }
-
-        EmbedBuilder embed = new EmbedBuilder().setColor(Constants.Colors.PRIMARY)
-                .setTitle("Bot Help")
-                .setFooter("Permissions: " + perms);
-
-        Map<String, Map<String, Command>> categoryCommands = new HashMap<>();
-        for (Method method : commands.values()) {
-            Command cmd = method.getAnnotation(Command.class);
-            String category = cmd.cat();
-            if (category.equals("")) {
-                Category cat = method.getDeclaringClass().getAnnotation(Category.class);
-                if (cat != null) {
-                    category = cat.cat();
-                }
-            }
-            if (cmd.perms() <= perms) {
-                categoryCommands.putIfAbsent(category, new HashMap<>());
-                categoryCommands.get(category).put(cmd.name()[0], cmd);
-            }
-        }
-
-        for (Map.Entry<String, Map<String, Command>> entry : categoryCommands.entrySet()) {
-            StringBuilder sb = new StringBuilder();
-            entry.getValue().forEach((key, value) -> {
-                sb.append(PREFIX).append(key);
-                Arrays.stream(value.args()).forEach(arg -> sb.append(" [").append(arg).append("]"));
-                sb.append(" - ").append(value.desc()).append("\n");
-            });
-
-            if (entry.getKey().equals("")) {
-                embed.setDescription(sb.toString());
+            if (cmd == null) {
                 continue;
             }
-
-            String catName = entry.getKey();
-            if (categories.containsKey(catName)) {
-                catName = categories.get(catName).name();
+            if (!method.getName().startsWith("handle")) {
+                throw exception.apply("Illegal Name", method.getName());
             }
 
-            embed = embed.addField(catName, sb.toString(), false);
-        }
+            if (!Modifier.isStatic(method.getModifiers())) {
+                throw exception.apply("Not Static", method.getName());
+            }
 
-        msg.getChannel().sendMessageEmbeds(embed.build()).queue();
+            // In a command the first parameter is always the message object. After that, all parameters are params
+            final Parameter[] parameters = method.getParameters();
+            int i = 0;
+            if (!parameters[i++].getType().equals(Message.class)) {
+                throw exception.apply("Invalid Parameters", method.getName());
+            }
+            // Minus 1 since we already know the first parameter is the message object
+            List<CommandMethod.Argument> args = new ArrayList<>(parameters.length - 1);
+            boolean optional = false; // All the required parameters must be before any optional ones
+            for (int size = parameters.length; i < size; i++) {
+                // Check the types
+                Parameter param = parameters[i];
+
+                boolean required = param.getAnnotation(Required.class) != null;
+                if (required && optional) {
+                    throw exception.apply("Required after Optional", method.getName());
+                }
+                optional = !required;
+
+                Class<?> type = param.getType();
+                int t = -1;
+                if (type == String.class) {
+                    t = CommandMethod.Argument.Type.STRING;
+                } else if (type == Integer.class) {
+                    t = CommandMethod.Argument.Type.INTEGER;
+                } else if (type == Member.class) {
+                    t = CommandMethod.Argument.Type.MENTION;
+                }
+                if (type == String[].class) {
+                    continue;
+                }
+
+                Function<String, Boolean> validate = s -> true;
+
+                // Now check option validation
+                final Selection selection = param.getAnnotation(Selection.class);
+                if (selection != null) {
+                    if (type != String.class) {
+                        throw exception.apply("Parameter selection applied on non-string", method.getName());
+                    }
+
+                    final List<String> strings = Arrays.stream(selection.opt()).toList();
+                    validate = s -> strings.contains(s.toLowerCase(Locale.ROOT));
+                }
+
+
+                if (t == -1) {
+                    throw exception.apply("Invalid Parameter Type", method.getName());
+                }
+
+                args.add(new CommandMethod.Argument(param.getName(), required, t, validate));
+                // TODO generate help
+            }
+
+            for (String name : cmd.name()) {
+                final CommandMethod command = new CommandMethod(method, args, cmd.perms());
+                final List<CommandMethod> commandMethods = commands.get(name);
+                if (commandMethods != null) {
+                    commandMethods.add(command);
+                } else {
+                    commands.put(name, new ArrayList<>(Collections.singleton(command)));
+                }
+            }
+        }
+    }
+
+    @Command(name = {"help"}, desc = "How to use this bot")
+    public static void handleHelp(@NotNull Message msg, @Required String cmd) {
+        System.out.println("c " + cmd);
+    }
+
+    @Command(name = {"help"}, desc = "How to use this bot")
+    public static void handleHelp(@NotNull Message msg, Integer perms) {
+        System.out.println("p " + perms);
+//        int perms = Constants.Perms.get(Objects.requireNonNull(msg.getMember()));
+//        if (args.length > 1) {
+//            try {
+//                perms = Integer.parseInt(args[1]);
+//                if (perms < 0 || perms > 2) {
+//                    throw new Exception();
+//                }
+//            } catch (Exception err) {
+//                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + args[1] + "' is not number between 0
+//                        and" +
+//                        "2")).queue();
+//                return;
+//            }
+//        }
+//
+//        EmbedBuilder embed = new EmbedBuilder().setColor(Constants.Colors.PRIMARY)
+//                .setTitle("Bot Help")
+//                .setFooter("Permissions: " + perms);
+//
+//        Map<String, Map<String, Command>> categoryCommands = new HashMap<>();
+//        for (Method method : commands.values()) {
+//            Command cmd = method.getAnnotation(Command.class);
+//            String category = cmd.cat();
+//            if (category.equals("")) {
+//                Category cat = method.getDeclaringClass().getAnnotation(Category.class);
+//                if (cat != null) {
+//                    category = cat.cat();
+//                }
+//            }
+//            if (cmd.perms() <= perms) {
+//                categoryCommands.putIfAbsent(category, new HashMap<>());
+//                categoryCommands.get(category).put(cmd.name()[0], cmd);
+//            }
+//        }
+//
+//        for (Map.Entry<String, Map<String, Command>> entry : categoryCommands.entrySet()) {
+//            StringBuilder sb = new StringBuilder();
+//            entry.getValue().forEach((key, value) -> {
+//                sb.append(PREFIX).append(key);
+//                Arrays.stream(value.args()).forEach(arg -> sb.append(" [").append(arg).append("]"));
+//                sb.append(" - ").append(value.desc()).append("\n");
+//            });
+//
+//            if (entry.getKey().equals("")) {
+//                embed.setDescription(sb.toString());
+//                continue;
+//            }
+//
+//            String catName = entry.getKey();
+//            if (categories.containsKey(catName)) {
+//                catName = categories.get(catName).name();
+//            }
+//
+//            embed = embed.addField(catName, sb.toString(), false);
+//        }
+//
+//        msg.getChannel().sendMessageEmbeds(embed.build()).queue();
     }
 
     @Command(name = {"info"}, desc = "Credit where credit is due")
-    public static void handleInfo(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    public static void handleInfo(@NotNull Message msg) {
         final EmbedBuilder bot_information = new EmbedBuilder()
                 .setTitle("Bot Information")
                 .setColor(Constants.Colors.PRIMARY)
@@ -157,26 +231,24 @@ public class Commands extends ListenerAdapter {
     /**
      * Command handler for punish command. See Punishments. punish
      *
-     * @param self Command Annotation
-     * @param msg  Message Object
-     * @param cmd  Parameters
+     * @param msg Message Object
+     * @param cmd Parameters
      */
     @Command(name = {"addpunish", "punish"}, cat = "In-Game Moderation", desc = "Add user to the punishment list",
             perms = Constants.Perms.MOD)
-    public static void handleAddPunish(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    public static void handleAddPunish(@NotNull Message msg, String[] cmd) {
         Punishments.punish(msg, cmd);
     }
 
     /**
      * Command handler for disable command. See Punishments. disable
      *
-     * @param self Command Annotation
-     * @param msg  Message Object
-     * @param cmd  Parameters
+     * @param msg Message Object
+     * @param cmd Parameters
      */
     @Command(name = {"adddisable", "disable"}, cat = "In-Game Moderation", desc = "Add user to the disable list",
             perms = Constants.Perms.MOD)
-    public static void handleAddDisable(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
+    public static void handleAddDisable(@NotNull Message msg, String[] cmd) {
         Punishments.disable(msg, cmd);
     }
 
@@ -219,68 +291,12 @@ public class Commands extends ListenerAdapter {
         Hill.init();
     }
 
-
-    @Override
-    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
-        try {
-            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
-
-            // Cancel if user is a bot or in an ignored channel
-            if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
-                return;
-            }
-
-            Message msg = event.getMessage();
-            // ignore DMs
-            if (!msg.isFromGuild()) {
-                return;
-            }
-
-            String content = msg.getContentDisplay();
-            if (!content.startsWith(PREFIX)) {
-                return;
-            }
-
-            // split content into words; remove prefix
-            content = content.replaceFirst(PREFIX, "");
-            String[] command = content.split(" ");
-            Method cmdMethod = commands.get(command[0].toLowerCase());
-            if (cmdMethod == null) {
-                return;
-            }
-
-            Command cmdInfo = cmdMethod.getAnnotation(Command.class);
-
-            // By handling the names here, it forces members to add their generals name to use any function of the bot
-            if (cmdInfo.perms() != Constants.Perms.NONE) {
-                if (Database.getGeneralsName(msg.getAuthor().getIdLong()) == null) {
-                    msg.getChannel().sendMessageEmbeds(
-                            new EmbedBuilder()
-                                    .setTitle("Unknown generals.io Username")
-                                    .setDescription("""
-                                            You must register your generals.io username.\s
-                                            Use ``!addname username`` to register.
-                                            Example: ```!addname MyName321```""")
-                                    .setColor(Constants.Colors.ERROR).build()).queue();
-                    return;
-                }
-            }
-
-            if (cmdInfo.perms() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        "You don't have permission to use **!" + command[0] + "**")).queue();
-                return;
-            }
-
-            try {
-                cmdMethod.invoke(null, this, msg, command);
-            } catch (InvocationTargetException e) {
-                throw e.getTargetException();
-            }
-        } catch (Throwable e) {
-            logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
-                                              event.getMessage().getContentDisplay());
+    private static String formatUsage(String cmd, List<CommandMethod.Argument> args) {
+        StringBuilder s = new StringBuilder(PREFIX + cmd);
+        for (CommandMethod.Argument arg : args) {
+            s.append(" [").append(arg.name()).append(arg.required() ? "" : "?").append("]");
         }
+        return s.toString();
     }
 
     @Target(ElementType.METHOD)
@@ -289,8 +305,6 @@ public class Commands extends ListenerAdapter {
         String[] name();
 
         String cat() default ""; // category
-
-        String[] args() default {};
 
         String desc();
 
@@ -303,6 +317,168 @@ public class Commands extends ListenerAdapter {
 
         String name();
     }
+
+    /**
+     * Command handler for getCommands. See Punishments.getCommands
+     *
+     * @param msg Message Object
+     * @param cmd Parameters
+     */
+    @Command(name = {"getpunishcommand", "getpunishcommands", "cmd"}, perms = Constants.Perms.MOD,
+            cat = "In-Game Moderation", desc = "Gets a list of commands to run to punish players")
+    public static void handleGetCommand(@NotNull Message msg, String[] cmd) {
+        Punishments.getCommands(msg);
+    }
+
+    @Override
+    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
+        try {
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
+
+            // Cancel if user is a bot or in an ignored channel
+            if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
+                return;
+            }
+            Message msg = event.getMessage();
+            // ignore DMs
+            if (!msg.isFromGuild()) {
+                return;
+            }
+
+            String content = msg.getContentRaw();
+            if (!content.startsWith(PREFIX)) {
+                return;
+            }
+
+
+            // split content into words; remove prefix
+            content = content.replaceFirst(PREFIX, "");
+            String[] command = content.split(" ");
+            List<CommandMethod> commands = Commands.commands.get(command[0].toLowerCase());
+            if (commands == null) {
+                System.out.println(Commands.commands);
+                return;
+            }
+
+            StringBuilder errors = new StringBuilder();
+
+            // Check each command - if the match is found then run it and ignore the rest
+            commandLoop:
+            for (CommandMethod cmd : commands) {
+                // By handling the names here, it forces members to add their generals name to use any function of
+                // the bot
+                if (cmd.permission() != Constants.Perms.NONE) {
+                    if (Database.getGeneralsName(msg.getAuthor().getIdLong()) == null) {
+                        msg.getChannel().sendMessageEmbeds(
+                                new EmbedBuilder()
+                                        .setTitle("Unknown generals.io Username")
+                                        .setDescription("""
+                                                You must register your generals.io username.\s
+                                                Use ``!addname username`` to register.
+                                                Example: ```!addname MyName321```""")
+                                        .setColor(Constants.Colors.ERROR).build()).queue();
+                        return; // If one is perms.none they all are so return is fine
+                    }
+                }
+
+                if (cmd.permission() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
+                    errors.append("You don't have permission to use **!").append(command[0]).append("**\n");
+                    continue;
+                }
+
+                // Now check parameters
+
+                // Start by breaking up the content and using quotes (not required) to get parameters with spaces
+                Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(
+                        String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
+                List<String> args = match.results()
+                        .map(MatchResult::group)
+                        .toList();
+
+                List<CommandMethod.Argument> parameters = cmd.parameters();
+
+                // Check the size first thing
+                if (args.size() > parameters.size()) {
+                    errors.append("Too many parameters\nUsage: ")
+                            .append(formatUsage(command[0].toLowerCase(Locale.ROOT), parameters)).append("\n\n");
+                    continue;
+                }
+
+
+                final List<Object> params = new ArrayList<>(args);
+                IntStream.range(params.size(), parameters.size()).forEach(i -> params.add(null));
+
+                for (int i = 0, parametersSize = parameters.size(); i < parametersSize; i++) {
+                    CommandMethod.Argument parameter = parameters.get(i);
+                    if (args.size() <= i) {
+
+                        if (parameter.required()) {
+                            errors.append("Missing parameter ").append(parameter.name()).append("\nUsage: ")
+                                    .append(formatUsage(command[0].toLowerCase(Locale.ROOT), parameters)).append("\n\n");
+                            continue commandLoop;
+                        }
+                        break;
+                    }
+
+                    // Start by checking the type
+                    final String s = args.get(i);
+                    if (parameter.type() == CommandMethod.Argument.Type.STRING) {
+                        boolean valid = switch (parameter.name()) {
+                            case "username", "username1", "username2" -> s.length() <= 18;
+                            // TODO add validation for mentions
+
+                            default -> true;
+                        } || parameter.validate().apply(s);
+                        if (!valid) {
+                            errors.append("Invalid parameter ").append(parameter.name()).append("\n");
+                            continue commandLoop;
+                        }
+                    } else if (parameter.type() == CommandMethod.Argument.Type.INTEGER) {
+                        if (!s.matches("^-?\\d+$")) {
+                            errors.append("Invalid parameter (expected number) ").append(parameter.name()).append("\n");
+                            continue commandLoop;
+                        }
+
+                        params.set(i, Integer.valueOf(s));
+                    } else if (parameter.type() == CommandMethod.Argument.Type.MENTION) {
+                        // TODO mentions
+                    }
+                }
+
+
+                params.add(0, msg);
+                try {
+                    cmd.method().invoke(null, params.toArray());
+                    return;
+                } catch (InvocationTargetException e) {
+                    throw e.getTargetException();
+                }
+            }
+
+            if (!errors.isEmpty()) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, errors.toString())).queue();
+            }
+        } catch (Throwable e) {
+            logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
+                                              event.getMessage().getContentDisplay());
+        }
+    }
+
+    /**
+     * Set on a @Command parameter if it is required - by default parameters are considered optional
+     */
+    @Target(ElementType.PARAMETER)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Required {
+    }
+
+
+    @Target(ElementType.PARAMETER)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Selection {
+        String[] opt();
+    }
+
 
     @Override
     public void onGuildMemberRemove(@NotNull GuildMemberRemoveEvent event) {
@@ -341,17 +517,12 @@ public class Commands extends ListenerAdapter {
         }
     }
 
-    /**
-     * Command handler for getCommands. See Punishments.getCommands
-     *
-     * @param self Command Annotation
-     * @param msg  Message Object
-     * @param cmd  Parameters
-     */
-    @Command(name = {"getpunishcommand", "getpunishcommands", "cmd"}, perms = Constants.Perms.MOD,
-            cat = "In-Game Moderation", desc = "Gets a list of commands to run to punish players")
-    public static void handleGetCommand(@NotNull Commands self, @NotNull Message msg, String[] cmd) {
-        Punishments.getCommands(msg);
+    private static record CommandMethod(Method method, List<Argument> parameters, int permission) {
+        private static record Argument(String name, boolean required, int type, Function<String, Boolean> validate) {
+            private static class Type {
+                public static final int STRING = 0, INTEGER = 1, MENTION = 2;
+            }
+        }
     }
 
     @Override
