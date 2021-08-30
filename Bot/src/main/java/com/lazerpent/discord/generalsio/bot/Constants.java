@@ -102,15 +102,15 @@ public class Constants {
         GoTH(0, 1, new Color(26, 188, 156)),
         AoTH(1, 2, new Color(155, 89, 182));
 
+        public final int id;
+        public final int teamSize;
+        public final Color color;
+
         Hill(int id, int teamSize, Color color) {
             this.id = id;
             this.teamSize = teamSize;
             this.color = color;
         }
-
-        public final int id;
-        public final int teamSize;
-        public final Color color;
 
         public static Hill fromId(int id) {
             for (Hill mode : Hill.values()) {
@@ -143,10 +143,10 @@ public class Constants {
         public Set<Long> ignoreChannels;
         public long rolesMessage;
         public long moderatorRole;
-        private boolean built;
         public Map<Hill, Long> hillRoles;
         public boolean development;
         public long errorChannel = -1;
+        private boolean built;
 
         public GuildInfo() {
             this.built = false;

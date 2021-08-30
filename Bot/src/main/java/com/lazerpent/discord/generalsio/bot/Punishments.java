@@ -109,14 +109,14 @@ public class Punishments {
         }
         if (event.getComponentId().endsWith("cancel")) {
             event.getInteraction().editMessageEmbeds(
-                    new EmbedBuilder(Objects.requireNonNull(event.getMessage()).getEmbeds().get(0))
-                            .setTitle(":x: In-Game Player Punishments").build())
+                            new EmbedBuilder(Objects.requireNonNull(event.getMessage()).getEmbeds().get(0))
+                                    .setTitle(":x: In-Game Player Punishments").build())
                     .setActionRows(Collections.emptyList()).queue();
             return;
         }
         event.getInteraction().editMessageEmbeds(
-                new EmbedBuilder(Objects.requireNonNull(event.getMessage()).getEmbeds().get(0))
-                        .setTitle(":white_check_mark: In-Game Player Punishments").build())
+                        new EmbedBuilder(Objects.requireNonNull(event.getMessage()).getEmbeds().get(0))
+                                .setTitle(":white_check_mark: In-Game Player Punishments").build())
                 .setActionRows(Collections.emptyList()).queue();
         Database.clearPunishments();
     }

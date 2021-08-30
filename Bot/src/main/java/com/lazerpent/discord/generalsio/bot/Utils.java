@@ -25,6 +25,7 @@ public class Utils {
                 .setColor(Constants.Colors.ERROR) // Red
                 .setTimestamp(Instant.now()).build();
     }
+
     /**
      * Creates a generic error message with a provided error message (which is put in the embed description)
      *
@@ -41,7 +42,7 @@ public class Utils {
     /**
      * Creates a generic success message with a provided message (which is put in the embed description)
      *
-     * @param msg     Message object containing the user who completed this command
+     * @param msg Message object containing the user who completed this command
      */
     public static MessageEmbed success(@NotNull Message msg, @NotNull String description) {
         return new EmbedBuilder().setTitle("Success")

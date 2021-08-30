@@ -36,7 +36,8 @@ public class Users {
         return embedUser(user);
     }
 
-    @Command(name = {"profile", "user"}, perms = Constants.Perms.USER, desc = "Show generals username for the given discord " +
+    @Command(name = {"profile", "user"}, perms = Constants.Perms.USER, desc = "Show generals username for the given " +
+                                                                              "discord " +
                                                                               "user, or the message author")
     public static Object handleUserDiscord(@NotNull Message msg, @Optional Member mention) {
         Database.User user;

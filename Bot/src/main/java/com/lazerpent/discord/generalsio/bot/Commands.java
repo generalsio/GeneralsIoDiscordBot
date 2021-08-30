@@ -45,25 +45,34 @@ public class Commands extends ListenerAdapter {
     // Maps holding all categories that have their own class.
     private static final Map<String, Category> categories = new HashMap<>();
 
-    @Target(ElementType.METHOD)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Command {
-        String[] name();
+    static {
+        List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
+        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class};
 
-        String cat() default ""; // category
+        for (Class<?> classCamelCase : classes) {
+            Category category = classCamelCase.getAnnotation(Category.class);
+            if (category != null) {
+                methods.addAll(Arrays.asList(classCamelCase.getDeclaredMethods()));
+                categories.put(category.cat(), category);
+            }
+        }
 
-        String desc();
+        for (Method method : methods) {
+            Command cmd = method.getAnnotation(Command.class);
+            if (cmd == null) {
+                continue;
+            }
 
-        int perms() default Constants.Perms.NONE;
-
-        int priority() default 0;
-    }
-
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Category {
-        String cat();
-
-        String name();
+            for (String name : cmd.name()) {
+                final CommandMethod command = new CommandMethod(method);
+                final List<CommandMethod> commandMethods = commands.get(name);
+                if (commandMethods != null) {
+                    commandMethods.add(command);
+                } else {
+                    commands.put(name, new ArrayList<>(Collections.singleton(command)));
+                }
+            }
+        }
     }
 
     /**
@@ -86,12 +95,6 @@ public class Commands extends ListenerAdapter {
             }
             c.sendMessage(write.toString().substring(0, 1999)).queue();
         }
-    }
-
-    @Target(ElementType.PARAMETER)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Selection {
-        String[] value();
     }
 
     /**
@@ -144,130 +147,6 @@ public class Commands extends ListenerAdapter {
             }
         }
         return s.toString();
-    }
-
-    @Override
-    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
-        try {
-            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
-
-            // Cancel if user is a bot or in an ignored channel
-            if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
-                return;
-            }
-            Message msg = event.getMessage();
-            // ignore DMs
-            if (!msg.isFromGuild()) {
-                return;
-            }
-
-            String content = msg.getContentRaw();
-            if (!content.startsWith(PREFIX)) {
-                return;
-            }
-
-            // split content into words; remove prefix
-            content = content.replaceFirst(PREFIX, "");
-            String[] command = content.split(" ");
-            List<CommandMethod> commands = Commands.commands.get(command[0].toLowerCase());
-            if (commands == null) {
-                return;
-            }
-            commands.sort((a, b) -> b.command().priority() - a.command().priority());
-            Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(
-                    String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
-            String[] args = match.results()
-                    .map(MatchResult::group)
-                    .toArray(String[]::new);
-
-
-            // check each command - if the match is found then run it and ignore the rest
-            Map<CommandMethod, String> errors = new HashMap<>();
-            for (CommandMethod cmd : commands) {
-                // TODO: this assumes that commands with perm NONE do not have any overloads with higher perms
-                if (cmd.command().perms() != Constants.Perms.NONE) {
-                    if (Database.getGeneralsName(msg.getAuthor().getIdLong()) == null) {
-                        msg.getChannel().sendMessageEmbeds(
-                                new EmbedBuilder()
-                                        .setTitle("Unknown generals.io Username")
-                                        .setDescription("""
-                                                You must register your generals.io username.\s
-                                                Use ``!addname username`` to register.
-                                                Example: ```!addname MyName321```""")
-                                        .setColor(Constants.Colors.ERROR).build()).queue();
-                        return; // If one is perms.none they all are so return is fine
-                    }
-                }
-
-                // check for valid perms
-                if (cmd.command().perms() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
-                    errors.put(cmd, "You don't have permission to use **!" + command[0] + "**\n");
-                    continue;
-                }
-
-                // check if arguments match
-                Pair<Object[], String> result = cmd.args(msg, args);
-                if (result.getKey() == null) {
-                    errors.put(cmd, result.getValue());
-                    continue;
-                }
-
-                // run command
-                try {
-                    Object ret = cmd.method().invoke(null, result.getKey());
-                    if (ret instanceof Message) {
-                        msg.getChannel().sendMessage((Message) ret).queue();
-                    } else if (ret instanceof MessageEmbed) {
-                        msg.getChannel().sendMessageEmbeds((MessageEmbed) ret).queue();
-                    } else if (ret != null) {
-                        throw new IllegalStateException("command " + command[0] + " does not have a valid return " +
-                                                        "value:  " + ret.getClass().toString());
-                    }
-                    return;
-                } catch (InvocationTargetException e) {
-                    throw e.getTargetException();
-                }
-            }
-
-            if (!errors.isEmpty()) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No Matches",
-                        errors.entrySet().stream().map(entry -> formatUsage(command[0], entry.getKey()) + "\n" + entry.getValue()).collect(Collectors.joining("\n\n"))
-                )).queue();
-            }
-        } catch (Throwable e) {
-            logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
-                                              event.getMessage().getContentDisplay());
-        }
-    }
-
-    static {
-        List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
-        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class};
-
-        for (Class<?> classCamelCase : classes) {
-            Category category = classCamelCase.getAnnotation(Category.class);
-            if (category != null) {
-                methods.addAll(Arrays.asList(classCamelCase.getDeclaredMethods()));
-                categories.put(category.cat(), category);
-            }
-        }
-
-        for (Method method : methods) {
-            Command cmd = method.getAnnotation(Command.class);
-            if (cmd == null) {
-                continue;
-            }
-
-            for (String name : cmd.name()) {
-                final CommandMethod command = new CommandMethod(method);
-                final List<CommandMethod> commandMethods = commands.get(name);
-                if (commandMethods != null) {
-                    commandMethods.add(command);
-                } else {
-                    commands.put(name, new ArrayList<>(Collections.singleton(command)));
-                }
-            }
-        }
     }
 
     @Command(name = {"help"}, desc = "List commands", priority = 1)
@@ -375,6 +254,217 @@ public class Commands extends ListenerAdapter {
             perms = Constants.Perms.MOD)
     public static void handleAddDisable(@NotNull Message msg, String[] cmd) {
         Punishments.disable(msg, cmd);
+    }
+
+    /**
+     * Command handler for getCommands. See Punishments.getCommands
+     *
+     * @param msg Message Object
+     * @param cmd Parameters
+     */
+    @Command(name = {"getpunishcommand", "getpunishcommands", "cmd"}, perms = Constants.Perms.MOD,
+            cat = "In-Game Moderation", desc = "Gets a list of commands to run to punish players")
+    public static void handleGetCommand(@NotNull Message msg, String[] cmd) {
+        Punishments.getCommands(msg);
+    }
+
+    @Override
+    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
+        try {
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
+
+            // Cancel if user is a bot or in an ignored channel
+            if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
+                return;
+            }
+            Message msg = event.getMessage();
+            // ignore DMs
+            if (!msg.isFromGuild()) {
+                return;
+            }
+
+            String content = msg.getContentRaw();
+            if (!content.startsWith(PREFIX)) {
+                return;
+            }
+
+            // split content into words; remove prefix
+            content = content.replaceFirst(PREFIX, "");
+            String[] command = content.split(" ");
+            List<CommandMethod> commands = Commands.commands.get(command[0].toLowerCase());
+            if (commands == null) {
+                return;
+            }
+            commands.sort((a, b) -> b.command().priority() - a.command().priority());
+            Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(
+                    String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
+            String[] args = match.results()
+                    .map(MatchResult::group)
+                    .toArray(String[]::new);
+
+
+            // check each command - if the match is found then run it and ignore the rest
+            Map<CommandMethod, String> errors = new HashMap<>();
+            for (CommandMethod cmd : commands) {
+                // TODO: this assumes that commands with perm NONE do not have any overloads with higher perms
+                if (cmd.command().perms() != Constants.Perms.NONE) {
+                    if (Database.getGeneralsName(msg.getAuthor().getIdLong()) == null) {
+                        msg.getChannel().sendMessageEmbeds(
+                                new EmbedBuilder()
+                                        .setTitle("Unknown generals.io Username")
+                                        .setDescription("""
+                                                You must register your generals.io username.\s
+                                                Use ``!addname username`` to register.
+                                                Example: ```!addname MyName321```""")
+                                        .setColor(Constants.Colors.ERROR).build()).queue();
+                        return; // If one is perms.none they all are so return is fine
+                    }
+                }
+
+                // check for valid perms
+                if (cmd.command().perms() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
+                    errors.put(cmd, "You don't have permission to use **!" + command[0] + "**\n");
+                    continue;
+                }
+
+                // check if arguments match
+                Pair<Object[], String> result = cmd.args(msg, args);
+                if (result.getKey() == null) {
+                    errors.put(cmd, result.getValue());
+                    continue;
+                }
+
+                // run command
+                try {
+                    Object ret = cmd.method().invoke(null, result.getKey());
+                    if (ret instanceof Message) {
+                        msg.getChannel().sendMessage((Message) ret).queue();
+                    } else if (ret instanceof MessageEmbed) {
+                        msg.getChannel().sendMessageEmbeds((MessageEmbed) ret).queue();
+                    } else if (ret != null) {
+                        throw new IllegalStateException("command " + command[0] + " does not have a valid return " +
+                                                        "value:  " + ret.getClass().toString());
+                    }
+                    return;
+                } catch (InvocationTargetException e) {
+                    throw e.getTargetException();
+                }
+            }
+
+            if (!errors.isEmpty()) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No Matches",
+                        errors.entrySet().stream().map(entry -> formatUsage(command[0], entry.getKey()) + "\n" + entry.getValue()).collect(Collectors.joining("\n\n"))
+                )).queue();
+            }
+        } catch (Throwable e) {
+            logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
+                                              event.getMessage().getContentDisplay());
+        }
+    }
+
+    @Override
+    public void onReady(@NotNull ReadyEvent event) {
+        System.out.println(event.getJDA().getGuilds());
+        Hill.init();
+    }
+
+    @Override
+    public void onGuildMemberRemove(@NotNull GuildMemberRemoveEvent event) {
+        try {
+            // Send a goodbye message (252599855841542145 is the new channel)
+            Objects.requireNonNull(event.getGuild().getTextChannelById(252599855841542145L)).sendMessageEmbeds(new EmbedBuilder()
+                    .setTitle("Goodbye " + event.getUser().getName() + "#" + event.getUser().getDiscriminator())
+                    .setThumbnail(event.getUser().getEffectiveAvatarUrl())
+                    .setColor(Constants.Colors.ERROR)
+                    .setDescription("We will miss you.")
+                    .build()).queue();
+        } catch (Exception e) {
+            logIfPresent(e, event.getGuild());
+        }
+    }
+
+    @Override
+    public void onGuildMemberJoin(@NotNull GuildMemberJoinEvent event) {
+        try {
+            // When a user joins the guild, send a message to the channel (252599855841542145 is the new channel)
+            Objects.requireNonNull(event.getGuild().getTextChannelById(252599855841542145L))
+                    .sendMessage(new MessageBuilder().append(event.getMember()).setEmbeds(new EmbedBuilder()
+                            .setTitle("Welcome " + event.getMember().getEffectiveName())
+                            .setThumbnail(event.getMember().getUser().getEffectiveAvatarUrl())
+                            .setColor(Constants.Colors.SUCCESS)
+                            .setDescription("""
+                                    Make sure you add your generals.io name to our bot, using ``!addname generals.io_username``.
+                                    Example: ```!addname MyName321```
+                                    Head over to <#754022719879643258> to register your name.""")
+                            .addField("Roles", "Want a role specific to the game modes you play? After registering " +
+                                               "your " +
+                                               "name, head over to <#787821221164351568> to get some roles.", false)
+                            .build()).build()).queue();
+        } catch (Exception e) {
+            logIfPresent(e, event.getGuild());
+        }
+    }
+
+    @Override
+    public void onButtonClick(ButtonClickEvent event) {
+        if (event.getComponentId().startsWith("goth-") || event.getComponentId().startsWith("aoth-")) {
+            Hill.handleButtonClick(event);
+        }
+        if (event.getComponentId().startsWith("punish-")) {
+            Punishments.onButtonClick(event);
+        }
+    }
+
+    @Override
+    public void onGuildMessageReactionAdd(@NotNull GuildMessageReactionAddEvent event) {
+        try {
+            RoleHandler.reactionAdd(event);
+        } catch (Exception e) {
+            logIfPresent(e, event.getGuild());
+        }
+    }
+
+    @Override
+    public void onGuildMemberUpdateNickname(@NotNull GuildMemberUpdateNicknameEvent event) {
+        try {
+            if (event.getUser().isBot() || !Users.getNickWupey())
+                return;
+            if (event.getEntity().getIdLong() == 175430325755838464L) {
+                if (!"Wupey".equals(event.getNewNickname())) {
+                    event.getGuild().modifyNickname(event.getEntity(), "Wupey").queue();
+                }
+            }
+        } catch (Exception e) {
+            logIfPresent(e, event.getGuild());
+        }
+    }
+
+
+    @Target(ElementType.METHOD)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Command {
+        String[] name();
+
+        String cat() default ""; // category
+
+        String desc();
+
+        int perms() default Constants.Perms.NONE;
+
+        int priority() default 0;
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Category {
+        String cat();
+
+        String name();
+    }
+
+    @Target(ElementType.PARAMETER)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Selection {
+        String[] value();
     }
 
     @Target(ElementType.PARAMETER)
@@ -514,96 +604,6 @@ public class Commands extends ListenerAdapter {
             }
 
             return new ImmutablePair<>(out, "");
-        }
-    }
-
-    @Override
-    public void onReady(@NotNull ReadyEvent event) {
-        System.out.println(event.getJDA().getGuilds());
-        Hill.init();
-    }
-
-    /**
-     * Command handler for getCommands. See Punishments.getCommands
-     *
-     * @param msg Message Object
-     * @param cmd Parameters
-     */
-    @Command(name = {"getpunishcommand", "getpunishcommands", "cmd"}, perms = Constants.Perms.MOD,
-            cat = "In-Game Moderation", desc = "Gets a list of commands to run to punish players")
-    public static void handleGetCommand(@NotNull Message msg, String[] cmd) {
-        Punishments.getCommands(msg);
-    }
-
-
-    @Override
-    public void onGuildMemberRemove(@NotNull GuildMemberRemoveEvent event) {
-        try {
-            // Send a goodbye message (252599855841542145 is the new channel)
-            Objects.requireNonNull(event.getGuild().getTextChannelById(252599855841542145L)).sendMessageEmbeds(new EmbedBuilder()
-                    .setTitle("Goodbye " + event.getUser().getName() + "#" + event.getUser().getDiscriminator())
-                    .setThumbnail(event.getUser().getEffectiveAvatarUrl())
-                    .setColor(Constants.Colors.ERROR)
-                    .setDescription("We will miss you.")
-                    .build()).queue();
-        } catch (Exception e) {
-            logIfPresent(e, event.getGuild());
-        }
-    }
-
-    @Override
-    public void onGuildMemberJoin(@NotNull GuildMemberJoinEvent event) {
-        try {
-            // When a user joins the guild, send a message to the channel (252599855841542145 is the new channel)
-            Objects.requireNonNull(event.getGuild().getTextChannelById(252599855841542145L))
-                    .sendMessage(new MessageBuilder().append(event.getMember()).setEmbeds(new EmbedBuilder()
-                            .setTitle("Welcome " + event.getMember().getEffectiveName())
-                            .setThumbnail(event.getMember().getUser().getEffectiveAvatarUrl())
-                            .setColor(Constants.Colors.SUCCESS)
-                            .setDescription("""
-                                    Make sure you add your generals.io name to our bot, using ``!addname generals.io_username``.
-                                    Example: ```!addname MyName321```
-                                    Head over to <#754022719879643258> to register your name.""")
-                            .addField("Roles", "Want a role specific to the game modes you play? After registering " +
-                                               "your " +
-                                               "name, head over to <#787821221164351568> to get some roles.", false)
-                            .build()).build()).queue();
-        } catch (Exception e) {
-            logIfPresent(e, event.getGuild());
-        }
-    }
-
-    @Override
-    public void onButtonClick(ButtonClickEvent event) {
-        if (event.getComponentId().startsWith("goth-") || event.getComponentId().startsWith("aoth-")) {
-            Hill.handleButtonClick(event);
-        }
-        if (event.getComponentId().startsWith("punish-")) {
-            Punishments.onButtonClick(event);
-        }
-    }
-
-    @Override
-    public void onGuildMessageReactionAdd(@NotNull GuildMessageReactionAddEvent event) {
-        try {
-            RoleHandler.reactionAdd(event);
-        } catch (Exception e) {
-            logIfPresent(e, event.getGuild());
-        }
-    }
-
-    @Override
-    public void onGuildMemberUpdateNickname(@NotNull GuildMemberUpdateNicknameEvent event) {
-        try {
-            if (event.getUser().isBot() || !Users.getNickWupey())
-                return;
-            if (event.getEntity().getIdLong() == 175430325755838464L) {
-                if (!"Wupey".equals(event.getNewNickname())) {
-                    event.getGuild().modifyNickname(event.getEntity(), "Wupey").queue();
-                }
-            }
-        } catch (Exception e) {
-            logIfPresent(e, event.getGuild());
         }
     }
 }

@@ -146,35 +146,6 @@ public class Database {
         return -1;
     }
 
-    public record User(long discordId, String username) implements Comparable<User> {
-        public User {
-            java.util.Objects.requireNonNull(username);
-        }
-
-        public int compareTo(@NotNull User other) {
-            return Long.compare(this.discordId(), other.discordId());
-        }
-
-        public static @Nullable User fromId(long discordId) {
-            String username = Database.getGeneralsName(discordId);
-            if (username == null) {
-                return null;
-            }
-
-            return new User(discordId, username);
-        }
-
-
-        public static @Nullable User fromUsername(@NotNull String username) {
-            long id = Database.getDiscordId(username);
-            if (id < 0) {
-                return null;
-            }
-
-            return new User(id, username);
-        }
-    }
-
     public static boolean noMatch(long discordId, String generalsName) {
         String sql = "select 1 from discord_to_generals where generalsName=? or discordId=?";
         try {
@@ -250,6 +221,34 @@ public class Database {
         try {
             connection.createStatement().execute("DELETE FROM punishments");
         } catch (SQLException ignored) {
+        }
+    }
+
+    public record User(long discordId, String username) implements Comparable<User> {
+        public User {
+            java.util.Objects.requireNonNull(username);
+        }
+
+        public static @Nullable User fromId(long discordId) {
+            String username = Database.getGeneralsName(discordId);
+            if (username == null) {
+                return null;
+            }
+
+            return new User(discordId, username);
+        }
+
+        public static @Nullable User fromUsername(@NotNull String username) {
+            long id = Database.getDiscordId(username);
+            if (id < 0) {
+                return null;
+            }
+
+            return new User(id, username);
+        }
+
+        public int compareTo(@NotNull User other) {
+            return Long.compare(this.discordId(), other.discordId());
         }
     }
 
@@ -378,13 +377,29 @@ public class Database {
         public static class Query {
             private final List<Item> items;
 
+            Query() {
+                this.items = new ArrayList<>();
+            }
+
+            private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
+                Challenge c = new Challenge();
+                c.timestamp = result.getLong("timestamp");
+                c.type = Constants.Hill.fromId(result.getInt("type"));
+                c.scoreInc = result.getInt("scoreInc");
+                c.scoreOpp = result.getInt("scoreOpp");
+                c.opp = Arrays.stream(result.getString("opp").split(DEL))
+                        .mapToLong(Long::parseLong)
+                        .toArray();
+                c.replays = result.getString("replays").split(DEL);
+                if (c.replays.length == 1 && c.replays[0].length() == 0) {
+                    c.replays = new String[0];
+                }
+                return c;
+            }
+
             public Query from(long timestamp) {
                 this.items.add(new Item("WHERE", "timestamp >= ?", Types.INTEGER, timestamp));
                 return this;
-            }
-
-            Query() {
-                this.items = new ArrayList<>();
             }
 
             public Query type(Constants.Hill type) {
@@ -467,22 +482,6 @@ public class Database {
             public Query limit(int n) {
                 this.items.add(new Item("LIMIT", "?", Types.INTEGER, n));
                 return this;
-            }
-
-            private static Challenge challengeFromSQL(@NotNull ResultSet result) throws SQLException {
-                Challenge c = new Challenge();
-                c.timestamp = result.getLong("timestamp");
-                c.type = Constants.Hill.fromId(result.getInt("type"));
-                c.scoreInc = result.getInt("scoreInc");
-                c.scoreOpp = result.getInt("scoreOpp");
-                c.opp = Arrays.stream(result.getString("opp").split(DEL))
-                        .mapToLong(Long::parseLong)
-                        .toArray();
-                c.replays = result.getString("replays").split(DEL);
-                if (c.replays.length == 1 && c.replays[0].length() == 0) {
-                    c.replays = new String[0];
-                }
-                return c;
             }
 
             private record Item(String clause, String content, int type, Object value) {
