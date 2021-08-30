@@ -9,6 +9,7 @@ import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
@@ -30,14 +31,18 @@ import java.lang.annotation.Target;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Array;
 import java.lang.reflect.Parameter;
 import java.util.*;
+import java.util.stream.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 public class Commands extends ListenerAdapter {
 
@@ -48,6 +53,260 @@ public class Commands extends ListenerAdapter {
 
     // Maps holding all categories that have their own class.
     private static final Map<String, Category> categories = new HashMap<>();
+
+    @Target(ElementType.METHOD)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Command {
+        String[] name();
+
+        String cat() default ""; // category
+
+        String desc();
+
+        int perms() default Constants.Perms.NONE;
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Category {
+        String cat();
+
+        String name();
+    }
+
+    @Target(ElementType.PARAMETER)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Optional{}
+
+    @Target(ElementType.PARAMETER)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Selection {
+        String[] value();
+    }
+
+    private static record CommandMethod(Method method) {
+        private static final BiFunction<String, String, IllegalStateException> exception =
+            (error, name) -> new IllegalStateException("Invalid Command Handler Method `" + name + "`: " + error);
+
+        public CommandMethod {
+            java.util.Objects.requireNonNull(method.getAnnotation(Command.class));
+            if (!method.getName().startsWith("handle")) throw exception.apply("illegal name: name must start with `handle`", method.getName());
+            if (!Modifier.isStatic(method.getModifiers())) throw exception.apply("not static", method.getName());
+
+            // TODO: checks
+        }
+
+        public Command command() {
+            return this.method().getAnnotation(Command.class);
+        }
+
+        public Parameter[] params() {
+            return this.method().getParameters();
+        }
+
+        public Pair<Object[], String> args(Message msg, String[] args) {
+            Parameter[] params = params();
+            if (args.length > params.length) {
+                return new ImmutablePair<>(null, "Expected maximum " + params.length + " parameters, found " + args.length + " parameters");
+            }
+
+            Object[] out = new Object[params.length];
+            int j = 0;
+            for (int i = 0 ; i < params.length; i++) {
+                Parameter param = params[i];
+
+                Class<?> type = param.getType();
+                if (type == Message.class) {
+                    out[i] = msg;
+                    continue;
+                }
+
+                if (j >= args.length) { // argument not present
+                    out[i] = null;
+
+                    if (param.getAnnotation(Optional.class) == null) {
+                        return new ImmutablePair<>(null, "Expected minimum " + (j+1) + " parameters, found " + args.length + " parameters");
+                    }
+                    j++;
+                    continue;
+                }
+
+                if (type == byte.class || type == Byte.class) {
+                    out[i] = Byte.parseByte(args[j]);
+                } else if (type == short.class || type == Short.class) {
+                    out[i] = Short.parseShort(args[j]);
+                } else if (type == int.class || type == Integer.class) {
+                    out[i] = Integer.parseInt(args[j]);
+                } else if (type == long.class || type == Long.class) {
+                    out[i] = Long.parseLong(args[j]);
+                } else if (type == String.class) {
+                    out[i] = args[j];
+
+                    Selection sel = param.getAnnotation(Selection.class);
+                    if (sel != null) {
+                        if (!Arrays.asList(sel.value()).contains(args[j])) {
+                            return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " + Arrays.stream(sel.value()).collect(Collectors.joining(" | ")) + ", is " + args[j]);
+                        }
+                    }
+                } else if (type == Member.class) {
+                    if (args[j].startsWith("<@") && args[j].endsWith(">")) {
+                        long userID;
+                        try {
+                            userID = Long.parseLong(args[j]);
+                        } catch (NumberFormatException e) {
+                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
+                        }
+
+                        out[i] = msg.getGuild().getMemberById(userID);
+                        if (out[i] == null) {
+                            return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member that no longer exists");
+                        }
+                    } else {
+                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
+                    }
+                } else if (type == String[].class) {
+                    if (i != params.length - 1) {
+                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and therefore must be the last argument");
+                    }
+
+                    out[i] = Arrays.copyOfRange(args, j, args.length);
+                } else if (type.isEnum()) {
+                    try {
+                        Object ret = type.getMethod("values").invoke(null);
+                        Object[] items = new Object[Array.getLength(ret)];
+                        String[] names = new String[items.length];
+                        for (int k = 0; k < items.length; k++) {
+                            items[k] = Array.get(ret, k);
+                            String name = (String)type.getMethod("name").invoke(items[k]);
+                            names[k] = name.toLowerCase();
+                        }
+
+                        for (int k = 0; k < items.length; k++) {
+                            if (names[k] == args[j].toLowerCase()) {
+                                out[i] = items[k];
+                                break;
+                            }
+                        }
+
+                        return new ImmutablePair<>(null, "Argument " + param.getName() + " must be " + Arrays.stream(names).collect(Collectors.joining(" | ")) + ", is " + args[j]);   
+                    } catch (Throwable t) {
+                        throw new IllegalStateException(t.getMessage());
+                    }
+                } else {
+                    return new ImmutablePair<>(null, "Unknown type");
+                }
+                // TODO:
+                // - enums
+                // - Guild?
+                // - Database.User
+
+                j++;
+            }
+
+            return new ImmutablePair<>(out, "");
+        }
+    }
+
+    private static String formatUsage(String cmd, CommandMethod method) {
+        StringBuilder s = new StringBuilder(PREFIX + cmd);
+        for (Parameter param : method.params()) {
+            if (param.getType() != Message.class)
+                s.append(" [").append(param.getName()).append(param.getAnnotation(Optional.class) == null ? "" : "?").append("]");
+        }
+        return s.toString();
+    }
+
+    @Override
+    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
+        try {
+            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
+
+            // Cancel if user is a bot or in an ignored channel
+            if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
+                return;
+            }
+            Message msg = event.getMessage();
+            // ignore DMs
+            if (!msg.isFromGuild()) {
+                return;
+            }
+
+            String content = msg.getContentRaw();
+            if (!content.startsWith(PREFIX)) {
+                return;
+            }
+
+            // split content into words; remove prefix
+            content = content.replaceFirst(PREFIX, "");
+            String[] command = content.split(" ");
+            List<CommandMethod> commands = Commands.commands.get(command[0].toLowerCase());
+            if (commands == null) {
+                return;
+            }
+            Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(
+                    String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
+            String[] args = match.results()
+                    .map(MatchResult::group)
+                    .toArray(String[]::new);
+
+
+            // check each command - if the match is found then run it and ignore the rest
+            Map<CommandMethod, String> errors = new HashMap<>();
+            for (CommandMethod cmd : commands) {
+                // TODO: this assumes that commands with perm NONE do not have any overloads with higher perms
+                if (cmd.command().perms() != Constants.Perms.NONE) {
+                    if (Database.getGeneralsName(msg.getAuthor().getIdLong()) == null) {
+                        msg.getChannel().sendMessageEmbeds(
+                                new EmbedBuilder()
+                                        .setTitle("Unknown generals.io Username")
+                                        .setDescription("""
+                                                You must register your generals.io username.\s
+                                                Use ``!addname username`` to register.
+                                                Example: ```!addname MyName321```""")
+                                        .setColor(Constants.Colors.ERROR).build()).queue();
+                        return; // If one is perms.none they all are so return is fine
+                    }
+                }
+
+                // check for valid perms
+                if (cmd.command().perms() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
+                    errors.put(cmd, "You don't have permission to use **!" + command[0] + "**\n");
+                    continue;
+                }
+
+                // check if arguments match
+                Pair<Object[], String> result = cmd.args(msg, args);
+                if (result.getKey() == null) {
+                    errors.put(cmd, result.getValue());
+                    continue;
+                }
+
+                // run command
+                try {
+                    System.out.println(Arrays.stream(result.getKey()).map(x -> x == null ? "null" : x.toString()).collect(Collectors.joining(" + ")));
+                    Object ret = cmd.method().invoke(null, (Object[])result.getKey());
+                    if (ret instanceof Message) {
+                        msg.getChannel().sendMessage((Message)ret).queue();
+                    } else if (ret instanceof MessageEmbed) {
+                        msg.getChannel().sendMessageEmbeds((MessageEmbed)ret).queue();
+                    } else if (ret != null && !(ret instanceof Void)) {
+                        throw new IllegalStateException("command " + command[0] + " does not have a valid return value");
+                    }
+                    return;
+                } catch (InvocationTargetException e) {
+                    throw e.getTargetException();
+                }
+            }
+
+            if (!errors.isEmpty()) {
+                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No Matches",
+                    errors.entrySet().stream().map(entry -> formatUsage(command[0], entry.getKey()) + "\n" + entry.getValue()).collect(Collectors.joining("\n\n"))
+                )).queue();
+            }
+        } catch (Throwable e) {
+            logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
+                                              event.getMessage().getContentDisplay());
+        }
+    }
 
     static {
         List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
@@ -61,79 +320,14 @@ public class Commands extends ListenerAdapter {
             }
         }
 
-        BiFunction<String, String, IllegalStateException> exception =
-                (error, name) -> new IllegalStateException("Invalid Command Handler Method: " + error + ", " + name);
-
-
         for (Method method : methods) {
             Command cmd = method.getAnnotation(Command.class);
             if (cmd == null) {
                 continue;
             }
-            if (!method.getName().startsWith("handle")) {
-                throw exception.apply("Illegal Name", method.getName());
-            }
-
-            if (!Modifier.isStatic(method.getModifiers())) {
-                throw exception.apply("Not Static", method.getName());
-            }
-
-            // In a command the first parameter is always the message object. After that, all parameters are params
-            final Parameter[] parameters = method.getParameters();
-            int i = 0;
-            if (!parameters[i++].getType().equals(Message.class)) {
-                throw exception.apply("Invalid Parameters", method.getName());
-            }
-            // Minus 1 since we already know the first parameter is the message object
-            List<CommandMethod.Argument> args = new ArrayList<>(parameters.length - 1);
-            boolean optional = false; // All the required parameters must be before any optional ones
-            for (int size = parameters.length; i < size; i++) {
-                // Check the types
-                Parameter param = parameters[i];
-
-                boolean required = param.getAnnotation(Required.class) != null;
-                if (required && optional) {
-                    throw exception.apply("Required after Optional", method.getName());
-                }
-                optional = !required;
-
-                Class<?> type = param.getType();
-                int t = -1;
-                if (type == String.class) {
-                    t = CommandMethod.Argument.Type.STRING;
-                } else if (type == Integer.class) {
-                    t = CommandMethod.Argument.Type.INTEGER;
-                } else if (type == Member.class) {
-                    t = CommandMethod.Argument.Type.MENTION;
-                }
-                if (type == String[].class) {
-                    continue;
-                }
-
-                Function<String, Boolean> validate = s -> true;
-
-                // Now check option validation
-                final Selection selection = param.getAnnotation(Selection.class);
-                if (selection != null) {
-                    if (type != String.class) {
-                        throw exception.apply("Parameter selection applied on non-string", method.getName());
-                    }
-
-                    final List<String> strings = Arrays.stream(selection.opt()).toList();
-                    validate = s -> strings.contains(s.toLowerCase(Locale.ROOT));
-                }
-
-
-                if (t == -1) {
-                    throw exception.apply("Invalid Parameter Type", method.getName());
-                }
-
-                args.add(new CommandMethod.Argument(param.getName(), required, t, validate));
-                // TODO generate help
-            }
 
             for (String name : cmd.name()) {
-                final CommandMethod command = new CommandMethod(method, args, cmd.perms());
+                final CommandMethod command = new CommandMethod(method);
                 final List<CommandMethod> commandMethods = commands.get(name);
                 if (commandMethods != null) {
                     commandMethods.add(command);
@@ -145,7 +339,7 @@ public class Commands extends ListenerAdapter {
     }
 
     @Command(name = {"help"}, desc = "How to use this bot")
-    public static void handleHelp(@NotNull Message msg, @Required String cmd) {
+    public static void handleHelp(@NotNull Message msg, String cmd) {
         System.out.println("c " + cmd);
     }
 
@@ -291,33 +485,6 @@ public class Commands extends ListenerAdapter {
         Hill.init();
     }
 
-    private static String formatUsage(String cmd, List<CommandMethod.Argument> args) {
-        StringBuilder s = new StringBuilder(PREFIX + cmd);
-        for (CommandMethod.Argument arg : args) {
-            s.append(" [").append(arg.name()).append(arg.required() ? "" : "?").append("]");
-        }
-        return s.toString();
-    }
-
-    @Target(ElementType.METHOD)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Command {
-        String[] name();
-
-        String cat() default ""; // category
-
-        String desc();
-
-        int perms() default Constants.Perms.NONE;
-    }
-
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Category {
-        String cat();
-
-        String name();
-    }
-
     /**
      * Command handler for getCommands. See Punishments.getCommands
      *
@@ -328,155 +495,6 @@ public class Commands extends ListenerAdapter {
             cat = "In-Game Moderation", desc = "Gets a list of commands to run to punish players")
     public static void handleGetCommand(@NotNull Message msg, String[] cmd) {
         Punishments.getCommands(msg);
-    }
-
-    @Override
-    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
-        try {
-            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
-
-            // Cancel if user is a bot or in an ignored channel
-            if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
-                return;
-            }
-            Message msg = event.getMessage();
-            // ignore DMs
-            if (!msg.isFromGuild()) {
-                return;
-            }
-
-            String content = msg.getContentRaw();
-            if (!content.startsWith(PREFIX)) {
-                return;
-            }
-
-
-            // split content into words; remove prefix
-            content = content.replaceFirst(PREFIX, "");
-            String[] command = content.split(" ");
-            List<CommandMethod> commands = Commands.commands.get(command[0].toLowerCase());
-            if (commands == null) {
-                System.out.println(Commands.commands);
-                return;
-            }
-
-            StringBuilder errors = new StringBuilder();
-
-            // Check each command - if the match is found then run it and ignore the rest
-            commandLoop:
-            for (CommandMethod cmd : commands) {
-                // By handling the names here, it forces members to add their generals name to use any function of
-                // the bot
-                if (cmd.permission() != Constants.Perms.NONE) {
-                    if (Database.getGeneralsName(msg.getAuthor().getIdLong()) == null) {
-                        msg.getChannel().sendMessageEmbeds(
-                                new EmbedBuilder()
-                                        .setTitle("Unknown generals.io Username")
-                                        .setDescription("""
-                                                You must register your generals.io username.\s
-                                                Use ``!addname username`` to register.
-                                                Example: ```!addname MyName321```""")
-                                        .setColor(Constants.Colors.ERROR).build()).queue();
-                        return; // If one is perms.none they all are so return is fine
-                    }
-                }
-
-                if (cmd.permission() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
-                    errors.append("You don't have permission to use **!").append(command[0]).append("**\n");
-                    continue;
-                }
-
-                // Now check parameters
-
-                // Start by breaking up the content and using quotes (not required) to get parameters with spaces
-                Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(
-                        String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
-                List<String> args = match.results()
-                        .map(MatchResult::group)
-                        .toList();
-
-                List<CommandMethod.Argument> parameters = cmd.parameters();
-
-                // Check the size first thing
-                if (args.size() > parameters.size()) {
-                    errors.append("Too many parameters\nUsage: ")
-                            .append(formatUsage(command[0].toLowerCase(Locale.ROOT), parameters)).append("\n\n");
-                    continue;
-                }
-
-
-                final List<Object> params = new ArrayList<>(args);
-                IntStream.range(params.size(), parameters.size()).forEach(i -> params.add(null));
-
-                for (int i = 0, parametersSize = parameters.size(); i < parametersSize; i++) {
-                    CommandMethod.Argument parameter = parameters.get(i);
-                    if (args.size() <= i) {
-
-                        if (parameter.required()) {
-                            errors.append("Missing parameter ").append(parameter.name()).append("\nUsage: ")
-                                    .append(formatUsage(command[0].toLowerCase(Locale.ROOT), parameters)).append("\n\n");
-                            continue commandLoop;
-                        }
-                        break;
-                    }
-
-                    // Start by checking the type
-                    final String s = args.get(i);
-                    if (parameter.type() == CommandMethod.Argument.Type.STRING) {
-                        boolean valid = switch (parameter.name()) {
-                            case "username", "username1", "username2" -> s.length() <= 18;
-                            // TODO add validation for mentions
-
-                            default -> true;
-                        } || parameter.validate().apply(s);
-                        if (!valid) {
-                            errors.append("Invalid parameter ").append(parameter.name()).append("\n");
-                            continue commandLoop;
-                        }
-                    } else if (parameter.type() == CommandMethod.Argument.Type.INTEGER) {
-                        if (!s.matches("^-?\\d+$")) {
-                            errors.append("Invalid parameter (expected number) ").append(parameter.name()).append("\n");
-                            continue commandLoop;
-                        }
-
-                        params.set(i, Integer.valueOf(s));
-                    } else if (parameter.type() == CommandMethod.Argument.Type.MENTION) {
-                        // TODO mentions
-                    }
-                }
-
-
-                params.add(0, msg);
-                try {
-                    cmd.method().invoke(null, params.toArray());
-                    return;
-                } catch (InvocationTargetException e) {
-                    throw e.getTargetException();
-                }
-            }
-
-            if (!errors.isEmpty()) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, errors.toString())).queue();
-            }
-        } catch (Throwable e) {
-            logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
-                                              event.getMessage().getContentDisplay());
-        }
-    }
-
-    /**
-     * Set on a @Command parameter if it is required - by default parameters are considered optional
-     */
-    @Target(ElementType.PARAMETER)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Required {
-    }
-
-
-    @Target(ElementType.PARAMETER)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Selection {
-        String[] opt();
     }
 
 
@@ -514,14 +532,6 @@ public class Commands extends ListenerAdapter {
                             .build()).build()).queue();
         } catch (Exception e) {
             logIfPresent(e, event.getGuild());
-        }
-    }
-
-    private static record CommandMethod(Method method, List<Argument> parameters, int permission) {
-        private static record Argument(String name, boolean required, int type, Function<String, Boolean> validate) {
-            private static class Type {
-                public static final int STRING = 0, INTEGER = 1, MENTION = 2;
-            }
         }
     }
 

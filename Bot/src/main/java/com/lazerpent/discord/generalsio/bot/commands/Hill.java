@@ -2,8 +2,9 @@ package com.lazerpent.discord.generalsio.bot.commands;
 
 import com.lazerpent.discord.generalsio.bot.*;
 import com.lazerpent.discord.generalsio.bot.Commands.Command;
-import com.lazerpent.discord.generalsio.bot.Commands.Required;
+import com.lazerpent.discord.generalsio.bot.Commands.Optional;
 import com.lazerpent.discord.generalsio.bot.Commands.Selection;
+
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.*;
@@ -191,18 +192,17 @@ public class Hill {
     }
 
     @Command(name = {"hdel", "hdelete"}, desc = "Delete completed AoTH/GoTH challenge", perms = Constants.Perms.MOD)
-    public static void handleGothDel(@NotNull Message msg, @Required @Selection(opt = {"goth", "aoth"}) String hill,
-                                     Integer challengeId, Integer hillId) {
-        Constants.Hill mode = Constants.Hill.fromString(hill);
+    public static Object handleGothDel(@NotNull Message msg, Constants.Hill mode,
+                                     @Optional Integer challengeId, @Optional  Integer hillId) {
         challengeId = challengeId == null ? -1 : challengeId;
         hillId = hillId == null ? -1 : hillId;
+ 
         long timestamp1;
         long timestamp2 = Long.MAX_VALUE;
         if (hillId == -1) {
             Database.Hill.Challenge[] cs = Database.Hill.lastTerms(mode, 1);
             if (cs.length == 0) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No " + mode.name() + "s exist")).queue();
-                return;
+                return Utils.error(msg, "No " + mode.name() + "s exist");
             }
             timestamp1 = cs[0].timestamp;
         } else {
@@ -213,16 +213,14 @@ public class Hill {
                 timestamp1 = cs[hillId - 1].timestamp;
                 timestamp2 = cs[hillId].timestamp;
             } else {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        mode.name() + " #" + hillId + " does not exist")).queue();
-                return;
+                return Utils.error(msg,
+                        mode.name() + " #" + hillId + " does not exist");
             }
         }
         Database.Hill.Challenge[] challenges = Database.Hill.get(mode, timestamp1, timestamp2);
         if (challenges.length < challengeId || challenges.length == 0) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    mode.name() + " #" + hillId + "'s challenge #" + challengeId + " does not exist")).queue();
-            return;
+            return Utils.error(msg,
+                    mode.name() + " #" + hillId + "'s challenge #" + challengeId + " does not exist");
         }
 
         Database.Hill.Challenge challenge;
@@ -230,24 +228,14 @@ public class Hill {
         else challenge = challenges[challengeId];
 
         Database.Hill.delete(challenge.timestamp);
-        msg.getChannel().sendMessageEmbeds(Utils.success(msg, "Challenge Deleted")).queue();
+
+        return Utils.success(msg, "Challenge Deleted");
     }
 
-    //    @Command(name = {"hset", "replace"}, args = {"goth | aoth", "@player", "@partner?"},
-//            desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD) TODO convert
-    public static void handleReplace(@NotNull Message msg, String[] args) {
-        if (args.length < 3) {
-            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 3, args.length)).queue();
-            return;
-        }
-        Constants.Hill mode = Constants.Hill.fromString(args[1]);
-        if (mode == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
-            return;
-        }
+       @Command(name = {"hset", "hreplace"}, desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD)
+    public static Object handleReplace(@NotNull Message msg, Constants.Hill mode, Member player, @Optional Member partner) {
         if (msg.getMentionedMembers().size() != mode.teamSize) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify " + mode.teamSize + " users.")).queue();
-            return;
+            return Utils.error(msg, "Must provide " + mode.teamSize + " mentions");
         }
 
         long[] tempXothIDs = msg.getMentionedMembers().stream().mapToLong(Member::getIdLong).sorted().toArray();
@@ -255,8 +243,7 @@ public class Hill {
                 Arrays.stream(tempXothIDs).mapToObj(Database.User::fromId).toArray(Database.User[]::new);
         for (int i = 0; i < tempXothIDs.length; i++) {
             if (tempXoth[i] == null) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "<@" + tempXothIDs[i] + "> is not registered.")).queue();
-                return;
+                return Utils.error(msg, "<@" + tempXothIDs[i] + "> is not registered.");
             }
         }
 
@@ -281,75 +268,55 @@ public class Hill {
         c.replays = new String[]{};
         Database.Hill.add(c);
 
-        msg.getChannel().sendMessageEmbeds(new EmbedBuilder()
+        return new EmbedBuilder()
                 .setColor(mode.color)
                 .setTitle("Temporary " + mode.name() + " set")
                 .setDescription(String.format("%s %s the temporary %s. They will not be recorded in the " +
                                               "hall of fame until they win a challenge.",
                         formatUsers(tempXoth, false),
                         (tempXoth.length == 1 ? "is" : "are"), mode))
-                .build()).queue();
+                .build();
     }
 
-    //    @Command(name = {"challenge", "hchallenge"}, args = {"goth | aoth", "bestof", "@partner?"},
-//            desc = "Challenge the current GoTH or AoTH.", perms = Constants.Perms.USER)TODO convert
-    public static void handleChallenge(@NotNull Message msg, String[] args) {
-        // TODO: gather arguments
-        if (args.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 2, args.length)).queue();
-            return;
+    @Command(name = {"challenge", "hchallenge"}, desc = "Challenge the current GoTH or AoTH.", perms = Constants.Perms.USER)
+    public static Object handleChallenge(@NotNull Message msg, Constants.Hill mode, String bestof, @Optional Member partner) {
+        if (bestof.length() < 2 || !bestof.substring(0, 2).equalsIgnoreCase("bo")) {
+            return Utils.error(msg,
+                    "\"bestof\" argument should be in format bo_ (ex. bo3).");
         }
-        Constants.Hill mode = Constants.Hill.fromString(args[1]);
-        if (mode == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH.")).queue();
-            return;
-        }
-        if (args.length < 3) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Must specify number of games in set (best of x games).")).queue();
-            return;
-        }
-        if (args[2].length() < 2 || !args[2].substring(0, 2).equalsIgnoreCase("bo")) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "\"bestof\" argument should be in format bo_ (ex. bo3).")).queue();
-            return;
-        }
-        int bestof;
+
+        int bestofN;
         try {
-            bestof = Integer.parseInt(args[2].substring(2));
+            bestofN = Integer.parseInt(bestof.substring(2));
         } catch (NumberFormatException e) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Must specify integer for number of games in set.")).queue();
-            return;
+            return Utils.error(msg,
+                    "Must specify integer for number of games in set.");
         }
-        if (bestof <= 0) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Must specify positive number for number of games in set.")).queue();
-            return;
+
+        if (bestofN <= 0) {
+            return Utils.error(msg,
+                    "Must specify positive number for number of games in set.");
         }
-        if (bestof % 2 == 0) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Must specify odd number for number of games in set.")).queue();
-            return;
+        if (bestofN % 2 == 0) {
+            return Utils.error(msg,
+                    "Must specify odd number for number of games in set.");
         }
 
         long[] partners = msg.getMentionedMembers().stream().mapToLong(ISnowflake::getIdLong).toArray();
         String[] partnerNames = Arrays.stream(partners).mapToObj(Database::getGeneralsName).toArray(String[]::new);
         if (partners.length + 1 != mode.teamSize) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Must specify " + (mode.teamSize - 1) + " partner to challenge " + mode.name())).queue();
-            return;
+            return Utils.error(msg,
+                    "Must specify " + (mode.teamSize - 1) + " partner to challenge " + mode.name());
         }
+
         for (int i = 0; i < partners.length; i++) {
             if (partners[i] == msg.getAuthor().getIdLong()) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        "You can't partner with yourself, you silly, lonely fool.")).queue();
-                return;
+                return Utils.error(msg,
+                        "You can't partner with yourself, you silly, lonely fool.");
             }
             if (partnerNames[i] == null) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        "<@" + partners[i] + "> must register generals.io username to challenge AoTH.")).queue();
-                return;
+                return Utils.error(msg,
+                        "<@" + partners[i] + "> must register generals.io username to challenge AoTH.");
             }
         }
 
@@ -361,18 +328,17 @@ public class Hill {
         for (long challenger : challengers) {
             if (Objects.requireNonNull(msg.getGuild().getMemberById(challenger)).getRoles()
                     .contains(msg.getGuild().getRoleById(GUILD_INFO.hillRoles.get(mode)))) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        "<@" + challenger + "> is already a " + mode.name())).queue();
-                return;
+                return Utils.error(msg,
+                        "<@" + challenger + "> is already a " + mode.name());
             }
         }
 
         if (Database.Hill.lastTerms(mode, 1).length == 0) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
+            return Utils.error(msg,
                     "There is no sitting " + mode.name() + ". Ask a mod to !hreplace you to become the " +
-                    "temporary " + mode.name() + ".")).queue();
+                    "temporary " + mode.name() + ".");
         } else {
-            msg.getChannel().sendMessage(new MessageBuilder().append("<@&")
+            return new MessageBuilder().append("<@&")
                     .append(String.valueOf(GUILD_INFO.hillRoles.get(mode))).append(">")
                     .setEmbeds(new EmbedBuilder()
                             .setColor(mode.color)
@@ -380,12 +346,12 @@ public class Hill {
                             .setDescription(String.format("%s challenge%s you, best of %d. Do you accept?",
                                     getOpponentName(challengers, true),
                                     (challengers.length == 1 ? "s" : ""),
-                                    bestof))
+                                    bestofN))
                             .build())
                     .setActionRows(ActionRow.of(List.of(
                             Button.success(String.format("%s-accept-%d-%s",
                                             mode.name().toLowerCase(),
-                                            bestof,
+                                            bestofN,
                                             Arrays.stream(challengers).mapToObj(String::valueOf).collect(Collectors.joining(
                                                     "-"))),
                                     "Accept"),
@@ -395,7 +361,7 @@ public class Hill {
                                                     "-"))),
                                     "Reject")
                     )))
-                    .build()).queue();
+                    .build();
         }
     }
 
@@ -502,52 +468,29 @@ public class Hill {
         }
     }
 
-    //    @Command(name = {"hof"}, args = {"goth | aoth?", "top | seq?", "limit?"}, desc = "Show GoTH or AoTH hall" +
-//                                                                                     " of fame" +
-//                                                                                     ".", perms
-//            = Constants.Perms.USER)TODO convert
-    public static void handleHallOfFame(@NotNull Message msg, String[] args) {
-        Constants.Hill mode;
-        if (args.length < 2) {
-            mode = Constants.Hill.GoTH;
-        } else {
-            mode = Constants.Hill.fromString(args[1]);
-        }
-        if (mode == null) {
-            msg.getChannel().sendMessageEmbeds(errorInvalidMode(msg, args[1])).queue();
-            return;
-        }
+    @Command(name = {"hof"}, desc = "Show GoTH or AoTH hall of fame", perms = Constants.Perms.USER)
+    public static void handleHallOfFame(@NotNull Message msg, @Optional Constants.Hill mode, @Optional @Selection({"top", "seq"}) String order, @Optional Integer limit) {
+        mode = mode == null ? Constants.Hill.GoTH : mode;
+        order = order == null ? "top" : order;
 
-        Database.Hill.Challenge[] xoths = Database.Hill.firstTerms(mode, Integer.MAX_VALUE);
+        final Constants.Hill mode_ = mode;
+        final Database.Hill.Challenge[] xoths = Database.Hill.firstTerms(mode, Integer.MAX_VALUE);
         int[] xothOrder = IntStream.range(0, xoths.length).toArray();
         int[] termLengths = IntStream.range(0, xoths.length)
-                .map(a -> Database.Hill.get(mode, xoths[a].timestamp + 1, a + 1 < xoths.length ?
+                .map(a -> Database.Hill.get(mode_, xoths[a].timestamp + 1, a + 1 < xoths.length ?
                         xoths[a + 1].timestamp : Long.MAX_VALUE).length)
                 .toArray();
+
+        limit = limit == null ? xothOrder.length : limit;
 
         if (xoths.length == 0) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No " + mode.name() + "s yet!")).queue();
             return;
         }
 
-        if (args.length > 2 && args[2].equals("top")) {
+        if (order.equals("top")) {
             xothOrder = Arrays.stream(xothOrder).boxed().sorted((a, b) -> termLengths[b] - termLengths[a])
                     .mapToInt(Integer::valueOf).toArray();
-        } else if (args.length > 2 && !args[2].equals("seq")) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Third argument must be either `seq` or `top`.")).queue();
-            return;
-        }
-
-        int limit = xothOrder.length;
-        if (args.length > 3) {
-            try {
-                limit = Integer.parseInt(args[3]);
-            } catch (NumberFormatException e) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        args[3] + " is not a number.")).queue();
-                return;
-            }
         }
 
         EmbedBuilder hofEmbed = new EmbedBuilder()
@@ -565,100 +508,47 @@ public class Hill {
         return Utils.error(msg, "Not a valid hill mode", "`" + s + "` is not a valid hill mode");
     }
 
-    //    @Command(name = {"hadd"}, args = {"goth | aoth", "score", "opponents"},
-//            desc = "Add entry to GoTH or AoTH.",
-//            perms = Constants.Perms.MOD)TODO convert
-    public static void handleAdd(@NotNull Message msg, String[] args) {
-        if (args.length < 4) {
-            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 4, args.length)).queue();
-            return;
-        }
-
-        String score = args[2];
+    @Command(name = {"hadd"}, desc = "Add entry to GoTH or AoTH.", perms = Constants.Perms.MOD)
+    public static Object handleAdd(@NotNull Message msg, Constants.Hill mode, String score, Member opponent1, @Optional Member opponent2) {
         List<Member> mentions = msg.getMentionedMembers();
 
         String[] scores = score.split("-");
         Database.Hill.Challenge c = new Database.Hill.Challenge();
-        c.type = Constants.Hill.fromString(args[1]);
+        c.type = mode;
         if (mentions.size() != Objects.requireNonNull(c.type).teamSize) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Wrong # of mentions: " + c.type.teamSize + " required")).queue();
-            return;
+            return Utils.error(msg,
+                    "Wrong # of mentions: " + c.type.teamSize + " required");
         }
 
         try {
             c.scoreInc = Integer.parseInt(scores[0]);
             c.scoreOpp = Integer.parseInt(scores[1]);
         } catch (NumberFormatException e) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    "Score format is [goth score]-[opponent score]")).queue();
-            return;
+            return Utils.error(msg,
+                    "Score format is [goth score]-[opponent score]");
         }
         c.timestamp = Instant.now().toEpochMilli();
 
         for (Member member : mentions) {
             if (Database.getGeneralsName(member.getIdLong()) == null) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        member.getAsMention() + " has not registered their generals.io user")).queue();
-                return;
+                return Utils.error(msg,
+                        member.getAsMention() + " has not registered their generals.io user");
             }
         }
         c.opp = mentions.stream().mapToLong(ISnowflake::getIdLong).toArray();
         c.replays = new String[]{".."};
 
-        msg.getChannel().sendMessageEmbeds(logScore(msg.getGuild(), c, Constants.Hill.GoTH)).queue();
+        return logScore(msg.getGuild(), c, Constants.Hill.GoTH);
     }
 
-    //    @Command(name = {"hrec", "hrecord"}, args = {"goth | aoth", "index? | mention?"},
-//            desc = "Show the challenge history of the nth GoTH/AoTH, "
-//                   + "or the latest GoTH/AoTH if no index is provided.",
-//            perms = Constants.Perms.USER)TODO convert
-    public static void handleRecord(@NotNull Message msg, String[] args) {
-        if (args.length < 2) {
-            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 2, args.length)).queue();
-            return;
-        }
-        Constants.Hill mode = Constants.Hill.fromString(args[1]);
-        if (mode == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH")).queue();
-            return;
+    @Command(name = {"hrec", "hrecord"}, desc = "Show the challenge history of the nth GoTH/AoTH, or the latest GoTH/AoTH if no index is provided", perms = Constants.Perms.USER)
+    public static Object handleRecord(@NotNull Message msg, Constants.Hill mode, @Optional Integer number) {
+        if (number != null && number <= 0) {
+            return Utils.error(msg,
+                    "Must provide a positive number for " + mode.name() + " index.");
         }
 
-        long[] mentions = msg.getMentionedMembers().stream().mapToLong(Member::getIdLong).toArray();
-
-        int number = -1;
-        if (args.length == 3 && mentions.length == 0) {
-            try {
-                number = Integer.parseInt(args[2]);
-            } catch (NumberFormatException e) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must provide a number for " + mode.name() +
-                                                                    " index.")).queue();
-                return;
-            }
-
-            if (number <= 0) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                        "Must provide a positive number for " + mode.name() + " index.")).queue();
-                return;
-            }
-        }
-        if (mentions.length != 0) {
-            if (mentions.length != mode.teamSize) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must provide " + mode.teamSize + " mentions for "
-                                                                    + mode.name())).queue();
-                return;
-            }
-
-            Database.Hill.Challenge[] terms = Database.Hill.xothTerms(mode, mentions);
-            if (terms.length == 0) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, Arrays.stream(mentions).<String>mapToObj(x ->
-                        "<@" + x + ">").collect(Collectors.joining(" ")) + " " + (mentions.length == 1 ? "has" :
-                        "have") + " not been " + mode.name())).queue();
-                return;
-            }
-
-            number = Database.Hill.nthTerm(mode, terms[0].timestamp);
-        }
+        number = number == null ? -1 : 0;
 
         Database.Hill.Challenge xoth = null;
         long nextTime = Long.MAX_VALUE;
@@ -679,9 +569,8 @@ public class Hill {
         }
 
         if (xoth == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    mode.name() + " #" + number + " not found")).queue();
-            return;
+            return Utils.error(msg,
+                    mode.name() + " #" + number + " not found");
         }
 
         Database.Hill.Challenge[] challenges = Database.Hill.get(mode, xoth.timestamp + 1, nextTime);
@@ -707,46 +596,47 @@ public class Hill {
             challengeString = joiner.toString();
         }
 
-        EmbedBuilder embed = new EmbedBuilder()
+        return new EmbedBuilder()
                 .setColor(mode.color)
                 .setTitle(mode.name() + " #" + number)
                 .setDescription(getOpponentName(xoth.opp, true))
-                .addField("Challenges (" + challenges.length + ")", challengeString, false);
-
-        msg.getChannel().sendMessageEmbeds(embed.build()).queue();
+                .addField("Challenges (" + challenges.length + ")", challengeString, false)
+                .build();
     }
 
-    //    @Command(name = {"hreplay", "hreplays"}, args = {"goth | aoth", "xoth index", "challenge #"},
-//            desc = "Show the replays of the given goth / challenge number.",
-//            perms = Constants.Perms.USER)TODO convert
-    public static void handleReplay(@NotNull Message msg, String[] args) {
-        if (args.length < 4) {
-            msg.getChannel().sendMessageEmbeds(Utils.errorWrongArgs(msg, 4, args.length)).queue();
-            return;
-        }
-        Constants.Hill mode = Constants.Hill.fromString(args[1]);
-        if (mode == null) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Must specify GoTH or AoTH")).queue();
-            return;
+    @Command(name = {"hrec", "hrecord"}, desc = "Show the challenge history of the given GoTH/AoTH", perms = Constants.Perms.USER)
+    public static Object handleRecordMention(@NotNull Message msg, Constants.Hill mode, Member mention1, @Optional Member mention2) {
+        List<Member> mentions = msg.getMentionedMembers();
+
+        if (mentions.size() != mode.teamSize) {
+            return Utils.error(msg, "Must provide " + mode.teamSize + " mentions for "
+                                                                + mode.name());
         }
 
-        int xothIdx;
-        try {
-            xothIdx = Integer.parseInt(args[2]);
-            if (xothIdx < 1) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number greater " +
-                                                                    "than 0")).queue();
-            }
-        } catch (NumberFormatException e) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, mode.name() + " index must be a number")).queue();
-            return;
+        Database.Hill.Challenge[] terms = Database.Hill.xothTerms(mode, mentions.stream().mapToLong(Member::getIdLong).toArray());
+        if (terms.length == 0) {
+            return Utils.error(msg, 
+                mentions.stream()
+                    .map(x -> "<@" + x.getIdLong() + ">")
+                    .collect(Collectors.joining(" "))
+                + " " + (mentions.size() == 1 ? "has" : "have") + " not been " + mode.name());
+        }
+
+        int number = Database.Hill.nthTerm(mode, terms[0].timestamp);
+        return handleRecord(msg, mode, number);   
+    }
+
+    @Command(name = {"hreplay"}, desc =  "Show the replays of the given goth / challenge number", perms = Constants.Perms.USER)
+    public static Object handleReplay(@NotNull Message msg, Constants.Hill mode, int xothIndex, int challengeNumber) {
+        int xothIdx = xothIndex;
+        if (xothIdx < 1) {
+            return Utils.error(msg, mode.name() + " index must be a number greater than 0");
         }
 
         Database.Hill.Challenge[] terms =
                 Database.Hill.query().type(mode).change().limit(xothIdx + 1).sort("asc").get();
         if (terms.length < xothIdx) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No such " + mode.name())).queue();
-            return;
+            return Utils.error(msg, "No such " + mode.name());
         }
 
         long start = terms[xothIdx - 1].timestamp;
@@ -755,24 +645,19 @@ public class Hill {
             end = terms[xothIdx].timestamp;
         }
 
-        int challengeIdx;
-        try {
-            challengeIdx = Integer.parseInt(args[3]);
-        } catch (NumberFormatException e) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg,
-                    mode.name() + " challenge index must be a number")).queue();
-            return;
+        int challengeIdx = challengeNumber;
+        if (challengeIdx < 0) {
+            return Utils.error(msg, "Challenge number must be 0 or greater");
         }
 
         Database.Hill.Challenge[] challenges =
                 Database.Hill.query().type(mode).from(start).to(end).sort("asc").limit(challengeIdx + 1).get();
         if (challenges.length < challengeIdx + 1) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No such " + mode.name() + " challenge")).queue();
-            return;
+            return Utils.error(msg, "No such " + mode.name() + " challenge");
         }
 
         Database.Hill.Challenge challenge = challenges[challengeIdx];
-        msg.getChannel().sendMessageEmbeds(scoreEmbed(challenge, mode)).queue();
+        return scoreEmbed(challenge, mode);
     }
 
     public static String formatUsers(Database.User[] users, boolean mention) {
