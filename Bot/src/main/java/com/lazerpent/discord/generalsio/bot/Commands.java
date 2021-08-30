@@ -532,14 +532,20 @@ public class Commands extends ListenerAdapter {
                     } else if (type == long.class || type == Long.class) {
                         out[i] = Long.parseLong(args[j]);
                     } else if (type == String.class) {
-                        out[i] = args[j];
-
                         Selection sel = param.getAnnotation(Selection.class);
                         if (sel != null) {
-                            if (!Arrays.asList(sel.value()).contains(args[j])) {
-                                return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
-                                                                 String.join(" | ", sel.value()) + ", is " + args[j]);
+                            for (String option : sel.value()) {
+                                if (option.toLowerCase().equals(args[j].toLowerCase())) {
+                                    out[i] = option;
+                                }
                             }
+
+                            if (out[i] == null) {
+                                return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
+                                    String.join(" | ", sel.value()) + ", is " + args[j]);
+                            }    
+                        } else {
+                            out[i] = args[j];
                         }
                     } else if (type == Member.class) {
                         if (args[j].startsWith("@!")) {
