@@ -6,11 +6,8 @@ import com.lazerpent.discord.generalsio.bot.commands.Stats;
 import com.lazerpent.discord.generalsio.bot.commands.Users;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
-import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageEmbed;
-import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
@@ -19,6 +16,8 @@ import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
@@ -28,21 +27,13 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Array;
-import java.lang.reflect.Parameter;
+import java.lang.reflect.*;
 import java.util.*;
-import java.util.stream.*;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.IntStream;
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.commons.lang3.tuple.ImmutablePair;
+import java.util.stream.Collectors;
 
 public class Commands extends ListenerAdapter {
 
@@ -73,9 +64,27 @@ public class Commands extends ListenerAdapter {
         String name();
     }
 
-    @Target(ElementType.PARAMETER)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Optional{}
+    /**
+     * Checks if the current guild has an error channel, and if it does send the exception provided to it.
+     * In both cases, the error is also printed to the standard out
+     *
+     * @param e       Throwable (Exception) which has a stack trace to be printed to the error channel (if it exists)
+     * @param g       Guild which may or may not have an error channel (dependent on Constants.GUILD_INFO)
+     * @param context String (which may be empty) representing context of this error, such as command being run at time
+     */
+    private static void logIfPresent(Throwable e, Guild g, String context) {
+        e.printStackTrace();
+        long channel = Constants.GUILD_INFO.get(g.getIdLong()).errorChannel;
+        if (channel != -1) {
+            StringWriter write = new StringWriter();
+            e.printStackTrace(new PrintWriter(write));
+            final TextChannel c = Objects.requireNonNull(g.getTextChannelById(channel));
+            if (context.length() > 0) {
+                c.sendMessage(context).queue();
+            }
+            c.sendMessage(write.toString().substring(0, 1999)).queue();
+        }
+    }
 
     @Target(ElementType.PARAMETER)
     @Retention(RetentionPolicy.RUNTIME)
@@ -83,127 +92,15 @@ public class Commands extends ListenerAdapter {
         String[] value();
     }
 
-    private static record CommandMethod(Method method) {
-        private static final BiFunction<String, String, IllegalStateException> exception =
-            (error, name) -> new IllegalStateException("Invalid Command Handler Method `" + name + "`: " + error);
-
-        public CommandMethod {
-            java.util.Objects.requireNonNull(method.getAnnotation(Command.class));
-            if (!method.getName().startsWith("handle")) throw exception.apply("illegal name: name must start with `handle`", method.getName());
-            if (!Modifier.isStatic(method.getModifiers())) throw exception.apply("not static", method.getName());
-
-            // TODO: checks
-        }
-
-        public Command command() {
-            return this.method().getAnnotation(Command.class);
-        }
-
-        public Parameter[] params() {
-            return this.method().getParameters();
-        }
-
-        public Pair<Object[], String> args(Message msg, String[] args) {
-            Parameter[] params = params();
-            if (args.length > params.length) {
-                return new ImmutablePair<>(null, "Expected maximum " + params.length + " parameters, found " + args.length + " parameters");
-            }
-
-            Object[] out = new Object[params.length];
-            int j = 0;
-            for (int i = 0 ; i < params.length; i++) {
-                Parameter param = params[i];
-
-                Class<?> type = param.getType();
-                if (type == Message.class) {
-                    out[i] = msg;
-                    continue;
-                }
-
-                if (j >= args.length) { // argument not present
-                    out[i] = null;
-
-                    if (param.getAnnotation(Optional.class) == null) {
-                        return new ImmutablePair<>(null, "Expected minimum " + (j+1) + " parameters, found " + args.length + " parameters");
-                    }
-                    j++;
-                    continue;
-                }
-
-                if (type == byte.class || type == Byte.class) {
-                    out[i] = Byte.parseByte(args[j]);
-                } else if (type == short.class || type == Short.class) {
-                    out[i] = Short.parseShort(args[j]);
-                } else if (type == int.class || type == Integer.class) {
-                    out[i] = Integer.parseInt(args[j]);
-                } else if (type == long.class || type == Long.class) {
-                    out[i] = Long.parseLong(args[j]);
-                } else if (type == String.class) {
-                    out[i] = args[j];
-
-                    Selection sel = param.getAnnotation(Selection.class);
-                    if (sel != null) {
-                        if (!Arrays.asList(sel.value()).contains(args[j])) {
-                            return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " + Arrays.stream(sel.value()).collect(Collectors.joining(" | ")) + ", is " + args[j]);
-                        }
-                    }
-                } else if (type == Member.class) {
-                    if (args[j].startsWith("<@") && args[j].endsWith(">")) {
-                        long userID;
-                        try {
-                            userID = Long.parseLong(args[j]);
-                        } catch (NumberFormatException e) {
-                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
-                        }
-
-                        out[i] = msg.getGuild().getMemberById(userID);
-                        if (out[i] == null) {
-                            return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member that no longer exists");
-                        }
-                    } else {
-                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
-                    }
-                } else if (type == String[].class) {
-                    if (i != params.length - 1) {
-                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and therefore must be the last argument");
-                    }
-
-                    out[i] = Arrays.copyOfRange(args, j, args.length);
-                } else if (type.isEnum()) {
-                    try {
-                        Object ret = type.getMethod("values").invoke(null);
-                        Object[] items = new Object[Array.getLength(ret)];
-                        String[] names = new String[items.length];
-                        for (int k = 0; k < items.length; k++) {
-                            items[k] = Array.get(ret, k);
-                            String name = (String)type.getMethod("name").invoke(items[k]);
-                            names[k] = name.toLowerCase();
-                        }
-
-                        for (int k = 0; k < items.length; k++) {
-                            if (names[k] == args[j].toLowerCase()) {
-                                out[i] = items[k];
-                                break;
-                            }
-                        }
-
-                        return new ImmutablePair<>(null, "Argument " + param.getName() + " must be " + Arrays.stream(names).collect(Collectors.joining(" | ")) + ", is " + args[j]);   
-                    } catch (Throwable t) {
-                        throw new IllegalStateException(t.getMessage());
-                    }
-                } else {
-                    return new ImmutablePair<>(null, "Unknown type");
-                }
-                // TODO:
-                // - enums
-                // - Guild?
-                // - Database.User
-
-                j++;
-            }
-
-            return new ImmutablePair<>(out, "");
-        }
+    /**
+     * Checks if the current guild has an error channel, and if it does send the exception provided to it.
+     * In both cases, the error is also printed to the standard out
+     *
+     * @param e Throwable (Exception) which has a stack trace to be printed to the error channel (if it exists)
+     * @param g Guild which may or may not have an error channel (dependent on Constants.GUILD_INFO)
+     */
+    private static void logIfPresent(Exception e, Guild g) {
+        logIfPresent(e, g, "");
     }
 
     private static String formatUsage(String cmd, CommandMethod method) {
@@ -283,13 +180,14 @@ public class Commands extends ListenerAdapter {
                 // run command
                 try {
                     System.out.println(Arrays.stream(result.getKey()).map(x -> x == null ? "null" : x.toString()).collect(Collectors.joining(" + ")));
-                    Object ret = cmd.method().invoke(null, (Object[])result.getKey());
+                    Object ret = cmd.method().invoke(null, result.getKey());
                     if (ret instanceof Message) {
-                        msg.getChannel().sendMessage((Message)ret).queue();
+                        msg.getChannel().sendMessage((Message) ret).queue();
                     } else if (ret instanceof MessageEmbed) {
-                        msg.getChannel().sendMessageEmbeds((MessageEmbed)ret).queue();
-                    } else if (ret != null && !(ret instanceof Void)) {
-                        throw new IllegalStateException("command " + command[0] + " does not have a valid return value");
+                        msg.getChannel().sendMessageEmbeds((MessageEmbed) ret).queue();
+                    } else if (ret != null) {
+                        throw new IllegalStateException("command " + command[0] + " does not have a valid return " +
+                                                        "value");
                     }
                     return;
                 } catch (InvocationTargetException e) {
@@ -299,7 +197,7 @@ public class Commands extends ListenerAdapter {
 
             if (!errors.isEmpty()) {
                 msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No Matches",
-                    errors.entrySet().stream().map(entry -> formatUsage(command[0], entry.getKey()) + "\n" + entry.getValue()).collect(Collectors.joining("\n\n"))
+                        errors.entrySet().stream().map(entry -> formatUsage(command[0], entry.getKey()) + "\n" + entry.getValue()).collect(Collectors.joining("\n\n"))
                 )).queue();
             }
         } catch (Throwable e) {
@@ -446,37 +344,139 @@ public class Commands extends ListenerAdapter {
         Punishments.disable(msg, cmd);
     }
 
-    /**
-     * Checks if the current guild has an error channel, and if it does send the exception provided to it.
-     * In both cases, the error is also printed to the standard out
-     *
-     * @param e       Throwable (Exception) which has a stack trace to be printed to the error channel (if it exists)
-     * @param g       Guild which may or may not have a error channel (dependent on Constants.GUILD_INFO)
-     * @param context String (which may be empty) representing context of this error, such as command being run at time
-     */
-    private static void logIfPresent(Throwable e, Guild g, String context) {
-        e.printStackTrace();
-        long channel = Constants.GUILD_INFO.get(g.getIdLong()).errorChannel;
-        if (channel != -1) {
-            StringWriter write = new StringWriter();
-            e.printStackTrace(new PrintWriter(write));
-            final TextChannel c = Objects.requireNonNull(g.getTextChannelById(channel));
-            if (context.length() > 0) {
-                c.sendMessage(context).queue();
-            }
-            c.sendMessage(write.toString().substring(0, 1999)).queue();
-        }
+    @Target(ElementType.PARAMETER)
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Optional {
     }
 
-    /**
-     * Checks if the current guild has an error channel, and if it does send the exception provided to it.
-     * In both cases, the error is also printed to the standard out
-     *
-     * @param e Throwable (Exception) which has a stack trace to be printed to the error channel (if it exists)
-     * @param g Guild which may or may not have a error channel (dependent on Constants.GUILD_INFO)
-     */
-    private static void logIfPresent(Exception e, Guild g) {
-        logIfPresent(e, g, "");
+    private static record CommandMethod(Method method) {
+        private static final BiFunction<String, String, IllegalStateException> exception =
+                (error, name) -> new IllegalStateException("Invalid Command Handler Method `" + name + "`: " + error);
+
+        public CommandMethod {
+            java.util.Objects.requireNonNull(method.getAnnotation(Command.class));
+            if (!method.getName().startsWith("handle"))
+                throw exception.apply("illegal name: name must start with `handle`", method.getName());
+            if (!Modifier.isStatic(method.getModifiers())) throw exception.apply("not static", method.getName());
+
+            // TODO: checks
+        }
+
+        public Command command() {
+            return this.method().getAnnotation(Command.class);
+        }
+
+        public Parameter[] params() {
+            return this.method().getParameters();
+        }
+
+        public Pair<Object[], String> args(Message msg, String[] args) {
+            Parameter[] params = params();
+            if (args.length > params.length) {
+                return new ImmutablePair<>(null,
+                        "Expected maximum " + params.length + " parameters, found " + args.length + " parameters");
+            }
+
+            Object[] out = new Object[params.length];
+            int j = 0;
+            for (int i = 0; i < params.length; i++) {
+                Parameter param = params[i];
+
+                Class<?> type = param.getType();
+                if (type == Message.class) {
+                    out[i] = msg;
+                    continue;
+                }
+
+                if (j >= args.length) { // argument not present
+                    out[i] = null;
+
+                    if (param.getAnnotation(Optional.class) == null) {
+                        return new ImmutablePair<>(null,
+                                "Expected minimum " + (j + 1) + " parameters, found " + args.length + " parameters");
+                    }
+                    j++;
+                    continue;
+                }
+
+                if (type == byte.class || type == Byte.class) {
+                    out[i] = Byte.parseByte(args[j]);
+                } else if (type == short.class || type == Short.class) {
+                    out[i] = Short.parseShort(args[j]);
+                } else if (type == int.class || type == Integer.class) {
+                    out[i] = Integer.parseInt(args[j]);
+                } else if (type == long.class || type == Long.class) {
+                    out[i] = Long.parseLong(args[j]);
+                } else if (type == String.class) {
+                    out[i] = args[j];
+
+                    Selection sel = param.getAnnotation(Selection.class);
+                    if (sel != null) {
+                        if (!Arrays.asList(sel.value()).contains(args[j])) {
+                            return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
+                                                             String.join(" | ", sel.value()) + ", is " + args[j]);
+                        }
+                    }
+                } else if (type == Member.class) {
+                    if (args[j].startsWith("<@") && args[j].endsWith(">")) {
+                        long userID;
+                        try {
+                            userID = Long.parseLong(args[j]);
+                        } catch (NumberFormatException e) {
+                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
+                        }
+
+                        out[i] = msg.getGuild().getMemberById(userID);
+                        if (out[i] == null) {
+                            return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member that" +
+                                                             " no longer exists");
+                        }
+                    } else {
+                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
+                    }
+                } else if (type == String[].class) {
+                    if (i != params.length - 1) {
+                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and therefore " +
+                                                         "must be the last argument");
+                    }
+
+                    out[i] = Arrays.copyOfRange(args, j, args.length);
+                } else if (type.isEnum()) {
+                    try {
+                        Object ret = type.getMethod("values").invoke(null);
+                        Object[] items = new Object[Array.getLength(ret)];
+                        String[] names = new String[items.length];
+                        for (int k = 0; k < items.length; k++) {
+                            items[k] = Array.get(ret, k);
+                            String name = (String) type.getMethod("name").invoke(items[k]);
+                            names[k] = name.toLowerCase();
+                        }
+
+                        for (int k = 0; k < items.length; k++) {
+                            if (Objects.equals(names[k], args[j].toLowerCase())) {
+                                out[i] = items[k];
+                                break;
+                            }
+                        }
+
+                        return new ImmutablePair<>(null, "Argument " + param.getName() + " must be " +
+                                                         String.join(" | ", names) + ", is " + args[j]);
+                    } catch (Throwable t) {
+                        throw new IllegalStateException(t.getMessage());
+                    }
+                } else {
+                    return new ImmutablePair<>(null, "Unknown type");
+                }
+                // TODO:
+                // - enums
+                // - Guild?
+                // - Database.User
+
+                j++;
+            }
+
+            return new ImmutablePair<>(out, "");
+        }
     }
 
     @Override

@@ -1,11 +1,12 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
-import com.lazerpent.discord.generalsio.bot.*;
-import com.lazerpent.discord.generalsio.bot.ReplayStatistics.ReplayResult;
 import com.lazerpent.discord.generalsio.bot.Commands.Command;
 import com.lazerpent.discord.generalsio.bot.Commands.Optional;
 import com.lazerpent.discord.generalsio.bot.Commands.Selection;
-
+import com.lazerpent.discord.generalsio.bot.Constants;
+import com.lazerpent.discord.generalsio.bot.ReplayStatistics;
+import com.lazerpent.discord.generalsio.bot.ReplayStatistics.ReplayResult;
+import com.lazerpent.discord.generalsio.bot.Utils;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -24,7 +25,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-@Commands.Category(cat = "stat", name = "Stats")
+import static com.lazerpent.discord.generalsio.bot.Commands.Category;
+
+@Category(cat = "stat", name = "Stats")
 public class Stats {
     private static final Semaphore REQUEST_LIMITER = new Semaphore(20);
     private static final AtomicInteger REQUESTED_PLAYERS = new AtomicInteger();
@@ -65,8 +68,8 @@ public class Stats {
 
     @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
     public static Object handleGraph(@NotNull Message msg,
-                                    @Selection({"add", "remove"}) String option,
-                                    String username) {
+                                     @Selection({"add", "remove"}) String option,
+                                     String username) {
         return switch (option) {
             case "add" -> addToGraph(msg, username);
             case "remove" -> removeFromGraph(msg, username);
@@ -75,8 +78,11 @@ public class Stats {
     }
 
     @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
-    public static void handleGraph(@NotNull Message msg, @Selection({"clear"}) String clear) {
-        clearGraph(msg);
+    public static MessageEmbed handleGraph(@NotNull Message msg, @Selection({"clear"}) String clear) {
+        int decrease = ReplayStatistics.clearGraph();
+        REQUESTED_PLAYERS.addAndGet(-decrease);
+        return new EmbedBuilder().setTitle("Successful Removal")
+                .setDescription("Cleared all users from graph.").setColor(Constants.Colors.SUCCESS).build();
     }
 
     public static MessageEmbed addToGraph(@NotNull Message msg, String username) {
@@ -114,22 +120,15 @@ public class Stats {
         }
         REQUESTED_PLAYERS.decrementAndGet();
         return new EmbedBuilder().setTitle("Successful Removal")
-                        .setDescription("Removed " + username + " from graph.").setColor(Constants.Colors.SUCCESS).build();
-    }
-
-    public static MessageEmbed clearGraph(@NotNull Message msg) {
-        int decrease = ReplayStatistics.clearGraph();
-        REQUESTED_PLAYERS.addAndGet(-decrease);
-        return new EmbedBuilder().setTitle("Successful Removal")
-                        .setDescription("Cleared all users from graph.").setColor(Constants.Colors.SUCCESS).build();
+                .setDescription("Removed " + username + " from graph.").setColor(Constants.Colors.SUCCESS).build();
     }
 
     @Command(name = {"showgraph"}, cat = "stat", perms = Constants.Perms.USER,
             desc = "Graph statistics of all stored players, either over time or games played.")
     public static MessageEmbed handleShowGraph(@NotNull Message msg,
-                                        @Selection({"1v1", "ffa"}) String mode,
-                                        @Selection({"game", "time"}) String graph,
-                                        @Optional Integer bucketSize, @Optional Integer starMin) {
+                                               @Selection({"1v1", "ffa"}) String mode,
+                                               @Selection({"game", "time"}) String graph,
+                                               @Optional Integer bucketSize, @Optional Integer starMin) {
         if (bucketSize == null) {
             bucketSize = 200;
         }
@@ -162,7 +161,7 @@ public class Stats {
             case "games" -> xAxis = ReplayStatistics.XAxisOption.GAMES_PLAYED;
             default -> {
                 return Utils.error(msg, "You must specify whether you will graph over time or games " +
-                                                 "played.");
+                                        "played.");
             }
         }
 

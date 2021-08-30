@@ -1,10 +1,12 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
-import com.lazerpent.discord.generalsio.bot.*;
+import com.lazerpent.discord.generalsio.bot.Commands.Category;
 import com.lazerpent.discord.generalsio.bot.Commands.Command;
 import com.lazerpent.discord.generalsio.bot.Commands.Optional;
-import com.lazerpent.discord.generalsio.bot.Commands.Selection;
-
+import com.lazerpent.discord.generalsio.bot.Constants;
+import com.lazerpent.discord.generalsio.bot.Database;
+import com.lazerpent.discord.generalsio.bot.RoleHandler;
+import com.lazerpent.discord.generalsio.bot.Utils;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
@@ -18,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-@Commands.Category(cat = "game", name = "Game")
+@Category(cat = "game", name = "Game")
 public class Game {
     private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server,
                                            @NotNull String link, @Nullable String map, int speed) {
@@ -72,26 +74,29 @@ public class Game {
                 .build();
     }
 
-    @Commands.Command(name = {"na", "custom", "private"}, desc = "Generate match on NA servers",
+    @Command(name = {"na", "custom", "private"}, desc = "Generate match on NA servers",
             perms = Constants.Perms.USER)
-    public static Message handleNA(@NotNull Message msg, @Optional String code, @Optional String map, @Optional Integer speed) {
+    public static Message handleNA(@NotNull Message msg, @Optional String code, @Optional String map,
+                                   @Optional Integer speed) {
         return customLink(msg, Constants.Server.NA, code, map, speed);
     }
 
-    @Commands.Command(name = {"eu", "eucustom", "euprivate"}, desc = "Generate match on EU servers", perms =
+    @Command(name = {"eu", "eucustom", "euprivate"}, desc = "Generate match on EU servers", perms =
             Constants.Perms.USER)
-    public static Message handleEU(@NotNull Message msg, @Optional String code, @Optional String map, @Optional Integer speed) {
+    public static Message handleEU(@NotNull Message msg, @Optional String code, @Optional String map,
+                                   @Optional Integer speed) {
         return customLink(msg, Constants.Server.EU, code, map, speed);
     }
 
-    @Commands.Command(name = {"bot", "botcustom", "botprivate"}, desc = "Generate match on Bot servers", perms =
+    @Command(name = {"bot", "botcustom", "botprivate"}, desc = "Generate match on Bot servers", perms =
             Constants.Perms.USER)
-    public static Message handleBOT(@NotNull Message msg, @Optional String code, @Optional String map, @Optional Integer speed) {
+    public static Message handleBOT(@NotNull Message msg, @Optional String code, @Optional String map,
+                                    @Optional Integer speed) {
         return customLink(msg, Constants.Server.BOT, code, map, speed);
     }
 
     private static Message customLink(@NotNull Message msg, @NotNull Constants.Server server, String code, String map,
-                                   Integer speed) {
+                                      Integer speed) {
         String link = code != null && code.matches("^[\\d\\w]+$") ? code :
                 Long.toString((long) (Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
         if (map != null && (map.equals("-") || map.equals("."))) map = null;
@@ -99,25 +104,25 @@ public class Game {
                 speed != null && (speed == 2 || speed == 3 || speed == 4) ? speed : 1);
     }
 
-    @Commands.Command(name = {"plots"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
+    @Command(name = {"plots"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
     public static Message handlePlots(@NotNull Message msg, String code) {
         return createLinkEmbed(msg, Constants.Server.NA, code == null ? "Plots" : code
                 , "Plots Lazerpent", 4);
     }
 
-    @Commands.Command(name = {"ping"}, desc = "Ping role", perms = Constants.Perms.USER)
+    @Command(name = {"ping"}, desc = "Ping role", perms = Constants.Perms.USER)
     public static Object handlePing(@NotNull Message msg) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 
         Constants.Mode mode = GUILD_INFO.channelToMode(msg.getChannel().getIdLong());
         if (mode == null) {
             return Utils.error(msg, "**!ping** can only be used in a game mode " +
-                                                                "channel");
+                                    "channel");
         }
 
         if (!RoleHandler.tryPing(mode)) {
             return Utils.error(msg, "Each role can only be pinged once every 10 " +
-                                                                "minutes");
+                                    "minutes");
         }
 
         Role role = msg.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
@@ -125,7 +130,7 @@ public class Game {
         return null;
     }
 
-    @Commands.Command(name = {"setuproles"}, desc = "Setup roles menu", perms = Constants.Perms.MOD)
+    @Command(name = {"setuproles"}, desc = "Setup roles menu", perms = Constants.Perms.MOD)
     public static void handleSetupRoles(@NotNull Message msg) {
         final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
 

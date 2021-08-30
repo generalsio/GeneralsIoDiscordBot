@@ -1,10 +1,10 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
-import com.lazerpent.discord.generalsio.bot.*;
+import com.lazerpent.discord.generalsio.bot.Commands.Category;
 import com.lazerpent.discord.generalsio.bot.Commands.Command;
 import com.lazerpent.discord.generalsio.bot.Commands.Optional;
 import com.lazerpent.discord.generalsio.bot.Commands.Selection;
-
+import com.lazerpent.discord.generalsio.bot.*;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.*;
@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-@Commands.Category(cat = "hill", name = "GoTH/AoTH")
+@Category(cat = "hill", name = "GoTH/AoTH")
 public class Hill {
     public static final HashMap<Constants.Hill, List<Hill.ChallengeData>> currentChallenges = new HashMap<>();
 
@@ -193,10 +193,10 @@ public class Hill {
 
     @Command(name = {"hdel", "hdelete"}, desc = "Delete completed AoTH/GoTH challenge", perms = Constants.Perms.MOD)
     public static Object handleGothDel(@NotNull Message msg, Constants.Hill mode,
-                                     @Optional Integer challengeId, @Optional  Integer hillId) {
+                                       @Optional Integer challengeId, @Optional Integer hillId) {
         challengeId = challengeId == null ? -1 : challengeId;
         hillId = hillId == null ? -1 : hillId;
- 
+
         long timestamp1;
         long timestamp2 = Long.MAX_VALUE;
         if (hillId == -1) {
@@ -232,8 +232,9 @@ public class Hill {
         return Utils.success(msg, "Challenge Deleted");
     }
 
-       @Command(name = {"hset", "hreplace"}, desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD)
-    public static Object handleReplace(@NotNull Message msg, Constants.Hill mode, Member player, @Optional Member partner) {
+    @Command(name = {"hset", "hreplace"}, desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD)
+    public static Object handleReplace(@NotNull Message msg, Constants.Hill mode, Member player,
+                                       @Optional Member partner) {
         if (msg.getMentionedMembers().size() != mode.teamSize) {
             return Utils.error(msg, "Must provide " + mode.teamSize + " mentions");
         }
@@ -278,8 +279,10 @@ public class Hill {
                 .build();
     }
 
-    @Command(name = {"challenge", "hchallenge"}, desc = "Challenge the current GoTH or AoTH.", perms = Constants.Perms.USER)
-    public static Object handleChallenge(@NotNull Message msg, Constants.Hill mode, String bestof, @Optional Member partner) {
+    @Command(name = {"challenge", "hchallenge"}, desc = "Challenge the current GoTH or AoTH.", perms =
+            Constants.Perms.USER)
+    public static Object handleChallenge(@NotNull Message msg, Constants.Hill mode, String bestof,
+                                         @Optional Member partner) {
         if (bestof.length() < 2 || !bestof.substring(0, 2).equalsIgnoreCase("bo")) {
             return Utils.error(msg,
                     "\"bestof\" argument should be in format bo_ (ex. bo3).");
@@ -469,7 +472,8 @@ public class Hill {
     }
 
     @Command(name = {"hof"}, desc = "Show GoTH or AoTH hall of fame", perms = Constants.Perms.USER)
-    public static void handleHallOfFame(@NotNull Message msg, @Optional Constants.Hill mode, @Optional @Selection({"top", "seq"}) String order, @Optional Integer limit) {
+    public static void handleHallOfFame(@NotNull Message msg, @Optional Constants.Hill mode, @Optional @Selection({
+            "top", "seq"}) String order, @Optional Integer limit) {
         mode = mode == null ? Constants.Hill.GoTH : mode;
         order = order == null ? "top" : order;
 
@@ -509,7 +513,8 @@ public class Hill {
     }
 
     @Command(name = {"hadd"}, desc = "Add entry to GoTH or AoTH.", perms = Constants.Perms.MOD)
-    public static Object handleAdd(@NotNull Message msg, Constants.Hill mode, String score, Member opponent1, @Optional Member opponent2) {
+    public static Object handleAdd(@NotNull Message msg, Constants.Hill mode, String score, Member opponent1,
+                                   @Optional Member opponent2) {
         List<Member> mentions = msg.getMentionedMembers();
 
         String[] scores = score.split("-");
@@ -541,14 +546,15 @@ public class Hill {
         return logScore(msg.getGuild(), c, Constants.Hill.GoTH);
     }
 
-    @Command(name = {"hrec", "hrecord"}, desc = "Show the challenge history of the nth GoTH/AoTH, or the latest GoTH/AoTH if no index is provided", perms = Constants.Perms.USER)
+    @Command(name = {"hrec", "hrecord"}, desc = "Show the challenge history of the nth GoTH/AoTH, or the latest " +
+                                                "GoTH/AoTH if no index is provided", perms = Constants.Perms.USER)
     public static Object handleRecord(@NotNull Message msg, Constants.Hill mode, @Optional Integer number) {
         if (number != null && number <= 0) {
             return Utils.error(msg,
                     "Must provide a positive number for " + mode.name() + " index.");
         }
 
-        number = number == null ? -1 : 0;
+        number = number == null ? -1 : number;
 
         Database.Hill.Challenge xoth = null;
         long nextTime = Long.MAX_VALUE;
@@ -604,59 +610,61 @@ public class Hill {
                 .build();
     }
 
-    @Command(name = {"hrec", "hrecord"}, desc = "Show the challenge history of the given GoTH/AoTH", perms = Constants.Perms.USER)
-    public static Object handleRecordMention(@NotNull Message msg, Constants.Hill mode, Member mention1, @Optional Member mention2) {
+    @Command(name = {"hrec", "hrecord"}, desc = "Show the challenge history of the given GoTH/AoTH", perms =
+            Constants.Perms.USER)
+    public static Object handleRecordMention(@NotNull Message msg, Constants.Hill mode, Member mention1,
+                                             @Optional Member mention2) {
         List<Member> mentions = msg.getMentionedMembers();
 
         if (mentions.size() != mode.teamSize) {
             return Utils.error(msg, "Must provide " + mode.teamSize + " mentions for "
-                                                                + mode.name());
+                                    + mode.name());
         }
 
-        Database.Hill.Challenge[] terms = Database.Hill.xothTerms(mode, mentions.stream().mapToLong(Member::getIdLong).toArray());
+        Database.Hill.Challenge[] terms = Database.Hill.xothTerms(mode,
+                mentions.stream().mapToLong(Member::getIdLong).toArray());
         if (terms.length == 0) {
-            return Utils.error(msg, 
-                mentions.stream()
-                    .map(x -> "<@" + x.getIdLong() + ">")
-                    .collect(Collectors.joining(" "))
-                + " " + (mentions.size() == 1 ? "has" : "have") + " not been " + mode.name());
+            return Utils.error(msg,
+                    mentions.stream()
+                            .map(x -> "<@" + x.getIdLong() + ">")
+                            .collect(Collectors.joining(" "))
+                    + " " + (mentions.size() == 1 ? "has" : "have") + " not been " + mode.name());
         }
 
         int number = Database.Hill.nthTerm(mode, terms[0].timestamp);
-        return handleRecord(msg, mode, number);   
+        return handleRecord(msg, mode, number);
     }
 
-    @Command(name = {"hreplay"}, desc =  "Show the replays of the given goth / challenge number", perms = Constants.Perms.USER)
+    @Command(name = {"hreplay"}, desc = "Show the replays of the given goth / challenge number", perms =
+            Constants.Perms.USER)
     public static Object handleReplay(@NotNull Message msg, Constants.Hill mode, int xothIndex, int challengeNumber) {
-        int xothIdx = xothIndex;
-        if (xothIdx < 1) {
+        if (xothIndex < 1) {
             return Utils.error(msg, mode.name() + " index must be a number greater than 0");
         }
 
         Database.Hill.Challenge[] terms =
-                Database.Hill.query().type(mode).change().limit(xothIdx + 1).sort("asc").get();
-        if (terms.length < xothIdx) {
+                Database.Hill.query().type(mode).change().limit(xothIndex + 1).sort("asc").get();
+        if (terms.length < xothIndex) {
             return Utils.error(msg, "No such " + mode.name());
         }
 
-        long start = terms[xothIdx - 1].timestamp;
+        long start = terms[xothIndex - 1].timestamp;
         long end = Long.MAX_VALUE;
-        if (terms.length > xothIdx) {
-            end = terms[xothIdx].timestamp;
+        if (terms.length > xothIndex) {
+            end = terms[xothIndex].timestamp;
         }
 
-        int challengeIdx = challengeNumber;
-        if (challengeIdx < 0) {
+        if (challengeNumber < 0) {
             return Utils.error(msg, "Challenge number must be 0 or greater");
         }
 
         Database.Hill.Challenge[] challenges =
-                Database.Hill.query().type(mode).from(start).to(end).sort("asc").limit(challengeIdx + 1).get();
-        if (challenges.length < challengeIdx + 1) {
+                Database.Hill.query().type(mode).from(start).to(end).sort("asc").limit(challengeNumber + 1).get();
+        if (challenges.length < challengeNumber + 1) {
             return Utils.error(msg, "No such " + mode.name() + " challenge");
         }
 
-        Database.Hill.Challenge challenge = challenges[challengeIdx];
+        Database.Hill.Challenge challenge = challenges[challengeNumber];
         return scoreEmbed(challenge, mode);
     }
 
