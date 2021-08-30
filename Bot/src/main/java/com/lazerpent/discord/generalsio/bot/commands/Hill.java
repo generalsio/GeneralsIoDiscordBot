@@ -485,7 +485,7 @@ public class Hill {
                         xoths[a + 1].timestamp : Long.MAX_VALUE).length)
                 .toArray();
 
-        limit = limit == null ? xothOrder.length : limit;
+        limit = limit == null ? 5 : limit;
 
         if (xoths.length == 0) {
             msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No " + mode.name() + "s yet!")).queue();

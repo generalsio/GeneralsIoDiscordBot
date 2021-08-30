@@ -55,6 +55,8 @@ public class Commands extends ListenerAdapter {
         String desc();
 
         int perms() default Constants.Perms.NONE;
+
+        int priority() default 0;
     }
 
     @Retention(RetentionPolicy.RUNTIME)
@@ -106,8 +108,38 @@ public class Commands extends ListenerAdapter {
     private static String formatUsage(String cmd, CommandMethod method) {
         StringBuilder s = new StringBuilder(PREFIX + cmd);
         for (Parameter param : method.params()) {
-            if (param.getType() != Message.class)
-                s.append(" [").append(param.getName()).append(param.getAnnotation(Optional.class) == null ? "" : "?").append("]");
+            if (param.getType() != Message.class) {
+                boolean bracket = true;
+                if (param.getType().isEnum() || param.getAnnotation(Selection.class) != null) {
+                    String[] names;
+                    if (param.getType().isEnum()) {
+                        try {
+                            Object ret = param.getType().getMethod("values").invoke(null);
+                            names = new String[Array.getLength(ret)];
+                            for (int k = 0; k < names.length; k++) {
+                                String name = (String)param.getType().getMethod("name").invoke(Array.get(ret, k));
+                                names[k] = name.toLowerCase();
+                            }
+                        } catch (Exception e) {
+                            throw new IllegalStateException(e.getMessage());
+                        }
+                    } else {
+                        names = param.getAnnotation(Selection.class).value();
+                    }
+
+                    if (names.length != 1) {
+                        s.append(" [" + Arrays.stream(names).collect(Collectors.joining(" | ")));
+                    } else {
+                        bracket = false;
+                        s.append(" " + names[0]);
+                    }
+                } else if (param.getType() == Member.class) {
+                    s.append(" [@" + param.getName());
+                } else {
+                    s.append(" [" + param.getName());
+                }
+                s.append(param.getAnnotation(Optional.class) == null ? "" : "?").append(bracket ? "]" : "");
+            }
         }
         return s.toString();
     }
@@ -139,6 +171,7 @@ public class Commands extends ListenerAdapter {
             if (commands == null) {
                 return;
             }
+            commands.sort((a, b) -> b.command().priority() - a.command().priority());
             Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(
                     String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
             String[] args = match.results()
@@ -179,7 +212,6 @@ public class Commands extends ListenerAdapter {
 
                 // run command
                 try {
-                    System.out.println(Arrays.stream(result.getKey()).map(x -> x == null ? "null" : x.toString()).collect(Collectors.joining(" + ")));
                     Object ret = cmd.method().invoke(null, result.getKey());
                     if (ret instanceof Message) {
                         msg.getChannel().sendMessage((Message) ret).queue();
@@ -187,7 +219,7 @@ public class Commands extends ListenerAdapter {
                         msg.getChannel().sendMessageEmbeds((MessageEmbed) ret).queue();
                     } else if (ret != null) {
                         throw new IllegalStateException("command " + command[0] + " does not have a valid return " +
-                                                        "value");
+                                                        "value:  " + ret.getClass().toString());
                     }
                     return;
                 } catch (InvocationTargetException e) {
@@ -236,75 +268,73 @@ public class Commands extends ListenerAdapter {
         }
     }
 
-    @Command(name = {"help"}, desc = "How to use this bot")
-    public static void handleHelp(@NotNull Message msg, String cmd) {
-        System.out.println("c " + cmd);
+    @Command(name = {"help"}, desc = "List commands", priority = 1)
+    public static MessageEmbed handleHelp(@NotNull Message msg, @Optional Integer perms) {
+        if (perms == null)
+            perms = Constants.Perms.get(Objects.requireNonNull(msg.getMember()));
+
+        EmbedBuilder embed = new EmbedBuilder().setColor(Constants.Colors.PRIMARY)
+                .setTitle("Bot Help")
+                .setFooter("Permissions: " + perms);
+
+        Map<String, Map<String, CommandMethod>> categoryCommands = new HashMap<>();
+        for (List<CommandMethod> methodList: commands.values()) {
+            for (CommandMethod method : methodList) {
+                Command cmd = method.command();
+                String category = cmd.cat();
+                if (category.equals("")) {
+                    Category cat = method.method().getDeclaringClass().getAnnotation(Category.class);
+                    if (cat != null) {
+                        category = cat.cat();
+                    }
+                }
+                if (cmd.perms() <= perms) {
+                    categoryCommands.putIfAbsent(category, new HashMap<>());
+                    categoryCommands.get(category).put(cmd.name()[0], method);
+                }
+            }
+        }
+
+        for (Map.Entry<String, Map<String, CommandMethod>> entry : categoryCommands.entrySet()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(entry.getValue().entrySet().stream().<String>map(Map.Entry::getKey).map(x -> "!" + x).collect(Collectors.joining(", ")));
+
+            if (entry.getKey().equals("")) {
+                embed.setDescription(sb.toString());
+                continue;
+            }
+
+            String catName = entry.getKey();
+            if (categories.containsKey(catName)) {
+                catName = categories.get(catName).name();
+            }
+
+            embed = embed.addField(catName, sb.toString(), false);
+        }
+
+        return embed.build();
     }
 
-    @Command(name = {"help"}, desc = "How to use this bot")
-    public static void handleHelp(@NotNull Message msg, Integer perms) {
-        System.out.println("p " + perms);
-//        int perms = Constants.Perms.get(Objects.requireNonNull(msg.getMember()));
-//        if (args.length > 1) {
-//            try {
-//                perms = Integer.parseInt(args[1]);
-//                if (perms < 0 || perms > 2) {
-//                    throw new Exception();
-//                }
-//            } catch (Exception err) {
-//                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "\\`" + args[1] + "' is not number between 0
-//                        and" +
-//                        "2")).queue();
-//                return;
-//            }
-//        }
-//
-//        EmbedBuilder embed = new EmbedBuilder().setColor(Constants.Colors.PRIMARY)
-//                .setTitle("Bot Help")
-//                .setFooter("Permissions: " + perms);
-//
-//        Map<String, Map<String, Command>> categoryCommands = new HashMap<>();
-//        for (Method method : commands.values()) {
-//            Command cmd = method.getAnnotation(Command.class);
-//            String category = cmd.cat();
-//            if (category.equals("")) {
-//                Category cat = method.getDeclaringClass().getAnnotation(Category.class);
-//                if (cat != null) {
-//                    category = cat.cat();
-//                }
-//            }
-//            if (cmd.perms() <= perms) {
-//                categoryCommands.putIfAbsent(category, new HashMap<>());
-//                categoryCommands.get(category).put(cmd.name()[0], cmd);
-//            }
-//        }
-//
-//        for (Map.Entry<String, Map<String, Command>> entry : categoryCommands.entrySet()) {
-//            StringBuilder sb = new StringBuilder();
-//            entry.getValue().forEach((key, value) -> {
-//                sb.append(PREFIX).append(key);
-//                Arrays.stream(value.args()).forEach(arg -> sb.append(" [").append(arg).append("]"));
-//                sb.append(" - ").append(value.desc()).append("\n");
-//            });
-//
-//            if (entry.getKey().equals("")) {
-//                embed.setDescription(sb.toString());
-//                continue;
-//            }
-//
-//            String catName = entry.getKey();
-//            if (categories.containsKey(catName)) {
-//                catName = categories.get(catName).name();
-//            }
-//
-//            embed = embed.addField(catName, sb.toString(), false);
-//        }
-//
-//        msg.getChannel().sendMessageEmbeds(embed.build()).queue();
+    @Command(name = {"help"}, desc = "Show usage for given command")
+    public static MessageEmbed handleHelp(@NotNull Message msg, String cmd) {
+        EmbedBuilder embed = new EmbedBuilder()
+            .setColor(Constants.Colors.PRIMARY)
+            .setTitle("Bot Help: !" + cmd);
+
+        List<CommandMethod> cmds = commands.get(cmd);
+        cmds.sort((a, b) -> b.command().priority() - a.command().priority());
+        if (cmds == null) {
+            return Utils.error(msg, "Unknown command", "!" + cmd + " is not a command");
+        }
+        for (CommandMethod method : cmds) { 
+            embed.addField(formatUsage(cmd, method), method.command().desc() + (method.command().name().length == 1 ? "": "\n" + "**Aliases:** " + String.join(", ", method.command().name())), false);
+        }
+
+        return embed.build();
     }
 
     @Command(name = {"info"}, desc = "Credit where credit is due")
-    public static void handleInfo(@NotNull Message msg) {
+    public static MessageEmbed handleInfo(@NotNull Message msg) {
         final EmbedBuilder bot_information = new EmbedBuilder()
                 .setTitle("Bot Information")
                 .setColor(Constants.Colors.PRIMARY)
@@ -317,7 +347,7 @@ public class Commands extends ListenerAdapter {
                     "DEVELOPMENT_MODE_DEVELOPER"), false);
         }
 
-        msg.getChannel().sendMessageEmbeds(bot_information.build()).queue();
+        return bot_information.build();
     }
 
     /**
@@ -399,78 +429,79 @@ public class Commands extends ListenerAdapter {
                     continue;
                 }
 
-                if (type == byte.class || type == Byte.class) {
-                    out[i] = Byte.parseByte(args[j]);
-                } else if (type == short.class || type == Short.class) {
-                    out[i] = Short.parseShort(args[j]);
-                } else if (type == int.class || type == Integer.class) {
-                    out[i] = Integer.parseInt(args[j]);
-                } else if (type == long.class || type == Long.class) {
-                    out[i] = Long.parseLong(args[j]);
-                } else if (type == String.class) {
-                    out[i] = args[j];
+                try {
+                    if (type == byte.class || type == Byte.class) {
+                        out[i] = Byte.parseByte(args[j]);
+                    } else if (type == short.class || type == Short.class) {
+                        out[i] = Short.parseShort(args[j]);
+                    } else if (type == int.class || type == Integer.class) {
+                        out[i] = Integer.parseInt(args[j]);
+                    } else if (type == long.class || type == Long.class) {
+                        out[i] = Long.parseLong(args[j]);
+                    } else if (type == String.class) {
+                        out[i] = args[j];
 
-                    Selection sel = param.getAnnotation(Selection.class);
-                    if (sel != null) {
-                        if (!Arrays.asList(sel.value()).contains(args[j])) {
-                            return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
-                                                             String.join(" | ", sel.value()) + ", is " + args[j]);
-                        }
-                    }
-                } else if (type == Member.class) {
-                    if (args[j].startsWith("<@") && args[j].endsWith(">")) {
-                        long userID;
-                        try {
-                            userID = Long.parseLong(args[j]);
-                        } catch (NumberFormatException e) {
-                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
-                        }
-
-                        out[i] = msg.getGuild().getMemberById(userID);
-                        if (out[i] == null) {
-                            return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member that" +
-                                                             " no longer exists");
-                        }
-                    } else {
-                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
-                    }
-                } else if (type == String[].class) {
-                    if (i != params.length - 1) {
-                        return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and therefore " +
-                                                         "must be the last argument");
-                    }
-
-                    out[i] = Arrays.copyOfRange(args, j, args.length);
-                } else if (type.isEnum()) {
-                    try {
-                        Object ret = type.getMethod("values").invoke(null);
-                        Object[] items = new Object[Array.getLength(ret)];
-                        String[] names = new String[items.length];
-                        for (int k = 0; k < items.length; k++) {
-                            items[k] = Array.get(ret, k);
-                            String name = (String) type.getMethod("name").invoke(items[k]);
-                            names[k] = name.toLowerCase();
-                        }
-
-                        for (int k = 0; k < items.length; k++) {
-                            if (Objects.equals(names[k], args[j].toLowerCase())) {
-                                out[i] = items[k];
-                                break;
+                        Selection sel = param.getAnnotation(Selection.class);
+                        if (sel != null) {
+                            if (!Arrays.asList(sel.value()).contains(args[j])) {
+                                return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
+                                                                String.join(" | ", sel.value()) + ", is " + args[j]);
                             }
                         }
+                    } else if (type == Member.class) {
+                        if (args[j].startsWith("@!")) {
+                            long userID;
+                            try {
+                                userID = Long.parseLong(args[j].substring(2));
+                            } catch (NumberFormatException e) {
+                                return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention: does not contain valid user ID");
+                            }
 
-                        return new ImmutablePair<>(null, "Argument " + param.getName() + " must be " +
-                                                         String.join(" | ", names) + ", is " + args[j]);
-                    } catch (Throwable t) {
-                        throw new IllegalStateException(t.getMessage());
+                            out[i] = msg.getGuild().getMemberById(userID);
+                            if (out[i] == null) {
+                                return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member that" +
+                                                                " no longer exists");
+                            }
+                        } else {
+                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
+                        }
+                    } else if (type == String[].class) {
+                        if (i != params.length - 1) {
+                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and therefore " +
+                                                            "must be the last argument");
+                        }
+
+                        out[i] = Arrays.copyOfRange(args, j, args.length);
+                    } else if (type.isEnum()) {
+                        try {
+                            Object ret = type.getMethod("values").invoke(null);
+                            Object[] items = new Object[Array.getLength(ret)];
+                            String[] names = new String[items.length];
+                            for (int k = 0; k < items.length; k++) {
+                                items[k] = Array.get(ret, k);
+                                String name = (String) type.getMethod("name").invoke(items[k]);
+                                names[k] = name.toLowerCase();
+                            }
+
+                            for (int k = 0; k < items.length; k++) {
+                                if (names[k].equals(args[j].toLowerCase())) {
+                                    out[i] = items[k];
+                                    break;
+                                }
+                            }
+
+                            if (out[i] == null)
+                                return new ImmutablePair<>(null, "Argument " + param.getName() + " must be " +
+                                                            String.join(" | ", names) + ", is " + args[j]);
+                        } catch (Throwable t) {
+                            throw new IllegalStateException(t.getMessage());
+                        }
+                    } else {
+                        return new ImmutablePair<>(null, "Unknown type");
                     }
-                } else {
-                    return new ImmutablePair<>(null, "Unknown type");
+                } catch (NumberFormatException e) {
+                    return new ImmutablePair<>(null, "Argument " + param.getName() + " must be a number, is " +  args[j]);
                 }
-                // TODO:
-                // - enums
-                // - Guild?
-                // - Database.User
 
                 j++;
             }

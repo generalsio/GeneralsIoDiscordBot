@@ -66,7 +66,7 @@ public class Stats {
         return statEmbed.build();
     }
 
-    @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
+    @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph", perms = Constants.Perms.USER)
     public static Object handleGraph(@NotNull Message msg,
                                      @Selection({"add", "remove"}) String option,
                                      String username) {
@@ -77,7 +77,7 @@ public class Stats {
         };
     }
 
-    @Command(name = {"graph"}, cat = "stat", desc = "Add or remove users from graph.", perms = Constants.Perms.USER)
+    @Command(name = {"graph"}, cat = "stat", desc = "Remove all users from graph", perms = Constants.Perms.USER)
     public static MessageEmbed handleGraph(@NotNull Message msg, @Selection({"clear"}) String clear) {
         int decrease = ReplayStatistics.clearGraph();
         REQUESTED_PLAYERS.addAndGet(-decrease);
