@@ -117,7 +117,7 @@ public class Commands extends ListenerAdapter {
                             Object ret = param.getType().getMethod("values").invoke(null);
                             names = new String[Array.getLength(ret)];
                             for (int k = 0; k < names.length; k++) {
-                                String name = (String)param.getType().getMethod("name").invoke(Array.get(ret, k));
+                                String name = (String) param.getType().getMethod("name").invoke(Array.get(ret, k));
                                 names[k] = name.toLowerCase();
                             }
                         } catch (Exception e) {
@@ -128,15 +128,17 @@ public class Commands extends ListenerAdapter {
                     }
 
                     if (names.length != 1) {
-                        s.append(" [" + Arrays.stream(names).collect(Collectors.joining(" | ")));
+                        s.append(" [").append(String.join(" | ", names));
                     } else {
                         bracket = false;
-                        s.append(" " + names[0]);
+                        s.append(" ").append(names[0]);
                     }
-                } else if (param.getType() == Member.class) {
-                    s.append(" [@" + param.getName());
                 } else {
-                    s.append(" [" + param.getName());
+                    s.append(" [");
+                    if (param.getType() == Member.class) {
+                        s.append("@");
+                    }
+                    s.append(param.getName());
                 }
                 s.append(param.getAnnotation(Optional.class) == null ? "" : "?").append(bracket ? "]" : "");
             }
@@ -278,7 +280,7 @@ public class Commands extends ListenerAdapter {
                 .setFooter("Permissions: " + perms);
 
         Map<String, Map<String, CommandMethod>> categoryCommands = new HashMap<>();
-        for (List<CommandMethod> methodList: commands.values()) {
+        for (List<CommandMethod> methodList : commands.values()) {
             for (CommandMethod method : methodList) {
                 Command cmd = method.command();
                 String category = cmd.cat();
@@ -297,7 +299,7 @@ public class Commands extends ListenerAdapter {
 
         for (Map.Entry<String, Map<String, CommandMethod>> entry : categoryCommands.entrySet()) {
             StringBuilder sb = new StringBuilder();
-            sb.append(entry.getValue().entrySet().stream().<String>map(Map.Entry::getKey).map(x -> "!" + x).collect(Collectors.joining(", ")));
+            sb.append(entry.getValue().keySet().stream().map(x -> "!" + x).collect(Collectors.joining(", ")));
 
             if (entry.getKey().equals("")) {
                 embed.setDescription(sb.toString());
@@ -318,16 +320,17 @@ public class Commands extends ListenerAdapter {
     @Command(name = {"help"}, desc = "Show usage for given command")
     public static MessageEmbed handleHelp(@NotNull Message msg, String cmd) {
         EmbedBuilder embed = new EmbedBuilder()
-            .setColor(Constants.Colors.PRIMARY)
-            .setTitle("Bot Help: !" + cmd);
+                .setColor(Constants.Colors.PRIMARY)
+                .setTitle("Bot Help: !" + cmd);
 
-        List<CommandMethod> cmds = commands.get(cmd);
-        cmds.sort((a, b) -> b.command().priority() - a.command().priority());
-        if (cmds == null) {
+        List<CommandMethod> commands = Commands.commands.get(cmd);
+        if (commands == null) {
             return Utils.error(msg, "Unknown command", "!" + cmd + " is not a command");
         }
-        for (CommandMethod method : cmds) { 
-            embed.addField(formatUsage(cmd, method), method.command().desc() + (method.command().name().length == 1 ? "": "\n" + "**Aliases:** " + String.join(", ", method.command().name())), false);
+        commands.sort((a, b) -> b.command().priority() - a.command().priority());
+        for (CommandMethod method : commands) {
+            embed.addField(formatUsage(cmd, method), method.command().desc() + (method.command().name().length == 1 ?
+                    "" : "\n" + "**Aliases:** " + String.join(", ", method.command().name())), false);
         }
 
         return embed.build();
@@ -445,7 +448,7 @@ public class Commands extends ListenerAdapter {
                         if (sel != null) {
                             if (!Arrays.asList(sel.value()).contains(args[j])) {
                                 return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
-                                                                String.join(" | ", sel.value()) + ", is " + args[j]);
+                                                                 String.join(" | ", sel.value()) + ", is " + args[j]);
                             }
                         }
                     } else if (type == Member.class) {
@@ -454,21 +457,24 @@ public class Commands extends ListenerAdapter {
                             try {
                                 userID = Long.parseLong(args[j].substring(2));
                             } catch (NumberFormatException e) {
-                                return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention: does not contain valid user ID");
+                                return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention: " +
+                                                                 "does not contain valid user ID");
                             }
 
                             out[i] = msg.getGuild().getMemberById(userID);
                             if (out[i] == null) {
-                                return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member that" +
-                                                                " no longer exists");
+                                return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member " +
+                                                                 "that" +
+                                                                 " no longer exists");
                             }
                         } else {
                             return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
                         }
                     } else if (type == String[].class) {
                         if (i != params.length - 1) {
-                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and therefore " +
-                                                            "must be the last argument");
+                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and " +
+                                                             "therefore " +
+                                                             "must be the last argument");
                         }
 
                         out[i] = Arrays.copyOfRange(args, j, args.length);
@@ -492,7 +498,7 @@ public class Commands extends ListenerAdapter {
 
                             if (out[i] == null)
                                 return new ImmutablePair<>(null, "Argument " + param.getName() + " must be " +
-                                                            String.join(" | ", names) + ", is " + args[j]);
+                                                                 String.join(" | ", names) + ", is " + args[j]);
                         } catch (Throwable t) {
                             throw new IllegalStateException(t.getMessage());
                         }
@@ -500,7 +506,8 @@ public class Commands extends ListenerAdapter {
                         return new ImmutablePair<>(null, "Unknown type");
                     }
                 } catch (NumberFormatException e) {
-                    return new ImmutablePair<>(null, "Argument " + param.getName() + " must be a number, is " +  args[j]);
+                    return new ImmutablePair<>(null,
+                            "Argument " + param.getName() + " must be a number, is " + args[j]);
                 }
 
                 j++;

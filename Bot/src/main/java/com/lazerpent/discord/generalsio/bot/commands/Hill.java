@@ -508,10 +508,6 @@ public class Hill {
         msg.getChannel().sendMessageEmbeds(hofEmbed.build()).queue();
     }
 
-    private static MessageEmbed errorInvalidMode(@NotNull Message msg, String s) {
-        return Utils.error(msg, "Not a valid hill mode", "`" + s + "` is not a valid hill mode");
-    }
-
     @Command(name = {"hadd"}, desc = "Add entry to GoTH or AoTH.", perms = Constants.Perms.MOD)
     public static Object handleAdd(@NotNull Message msg, Constants.Hill mode, String score, Member opponent1,
                                    @Optional Member opponent2) {
