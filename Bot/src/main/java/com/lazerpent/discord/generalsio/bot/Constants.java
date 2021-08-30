@@ -228,13 +228,11 @@ public class Constants {
         public final static int USER = 1;
         public final static int MOD = 2;
 
-        private Perms() {}
-
         /**
          * @return whether said user has a given permission.
          */
         public static int get(@NotNull Member mbr) {
-            if (mbr.hasPermission(Permission.MESSAGE_MANAGE) || mbr.getIdLong() == 356517795791503393L) {
+            if (mbr.hasPermission(Permission.MESSAGE_MANAGE) || mbr.getIdLong() == 426133274692419615L) { // t.h.i.n.g
                 return Perms.MOD;
             } else if (Database.getGeneralsName(mbr.getIdLong()) != null) {
                 return Perms.USER;
