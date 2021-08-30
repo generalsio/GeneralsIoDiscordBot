@@ -209,7 +209,7 @@ public class Commands extends ListenerAdapter {
         commands.sort((a, b) -> b.command().priority() - a.command().priority());
         for (CommandMethod method : commands) {
             embed.addField(formatUsage(cmd, method), method.command().desc() + (method.command().name().length == 1 ?
-                    "" : "\n" + "**Aliases:** " + String.join(", ", method.command().name())), false);
+                    "" : "\n" + "**Aliases:** " + String.join(", ", method.command().name())) + "\n**Permissions:** " + method.command().perms(), false);
         }
 
         return embed.build();
