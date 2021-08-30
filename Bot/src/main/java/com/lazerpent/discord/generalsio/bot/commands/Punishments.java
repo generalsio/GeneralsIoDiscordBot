@@ -1,8 +1,9 @@
-package com.lazerpent.discord.generalsio.bot;
+package com.lazerpent.discord.generalsio.bot.commands;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
@@ -16,6 +17,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.lazerpent.discord.generalsio.bot.*;
+import com.lazerpent.discord.generalsio.bot.Commands.*;
+
 /**
  * Punishment handler
  * This whole system requires moderator permission to use
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
  * A moderator can then pull up a list of the command to run to punish/disable the users. After running a command, the
  * moderator can select to clear the list and start over
  */
+@Category(cat = "mod", name = "Moderation")
 public class Punishments {
     /**
      * Allows a moderator to add a list of usernames to the punishment list
@@ -36,12 +41,11 @@ public class Punishments {
      * @param msg  Message object from moderator (permission determined prior to call)
      * @param args List of players delimited by spaces (or using quotes for multiple words)
      */
-    public static void punish(@NotNull Message msg, @NotNull String[] args) {
-        List<String> names = validateInput(msg, args);
-        if (names == null) return;
-
-        names.forEach(Database::addPunishment);
-        msg.getChannel().sendMessageEmbeds(Utils.success(msg, "Added players to punishment list.")).queue();
+    @Command(name = {"punish"}, desc = "Add user to the punishment list",
+            perms = Constants.Perms.MOD)
+    public static MessageEmbed handlePunish(@NotNull Message msg, @NotNull String[] names) {
+        Arrays.stream(names).forEach(Database::addPunishment);
+        return Utils.success(msg, "Added players to punishment list.");
     }
 
     /**
@@ -52,12 +56,11 @@ public class Punishments {
      * @param msg  Message object from moderator (permission determined prior to call)
      * @param args List of players delimited by spaces (or using quotes for multiple words)
      */
-    public static void disable(@NotNull Message msg, @NotNull String[] args) {
-        List<String> names = validateInput(msg, args);
-        if (names == null) return;
-
-        names.forEach(Database::addDisable);
-        msg.getChannel().sendMessageEmbeds(Utils.success(msg, "Added players to disable list.")).queue();
+    @Command(name = {"disable"}, desc = "Add user to the disable list",
+            perms = Constants.Perms.MOD)
+    public static MessageEmbed handleDisable(@NotNull Message msg, @NotNull String[] names) {
+        Arrays.stream(names).forEach(Database::addDisable);
+        return Utils.success(msg, "Added players to disable list.");
     }
 
 
@@ -68,7 +71,8 @@ public class Punishments {
      *
      * @param msg Message object from moderator (permission determined prior to call)
      */
-    public static void getCommands(@NotNull Message msg) {
+    @Command(name = {"getpunish", "getpunishcommand", "getpunishcommands"}, perms = Constants.Perms.MOD, desc = "Gets a list of commands to run to punish players")
+    public static Message handleGetCommands(@NotNull Message msg) {
         List<String> punish = new LinkedList<>(), disable = new LinkedList<>();
         Database.getPunishments(punish, disable);
 
@@ -94,7 +98,7 @@ public class Punishments {
         }
         builder.setEmbeds(embedBuilder.build());
 
-        msg.getChannel().sendMessage(builder.build()).queue();
+        return builder.build();
     }
 
     /**
@@ -119,29 +123,5 @@ public class Punishments {
                                 .setTitle(":white_check_mark: In-Game Player Punishments").build())
                 .setActionRows(Collections.emptyList()).queue();
         Database.clearPunishments();
-    }
-
-    /**
-     * Validates the moderator's input of usernames by comparing them against max length (18)
-     *
-     * @param msg  Message object
-     * @param args Username list delimited by spaces or quotes
-     * @return List of each username
-     */
-    private static List<String> validateInput(@NotNull Message msg, @NotNull String[] args) {
-        if (args.length == 1) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "You must provide at least one username.")).queue();
-            return null;
-        }
-        String argString = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
-        Matcher match = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(argString);
-        List<String> names = match.results().map(MatchResult::group).map(s -> s.replaceAll("\"", "").trim())
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        if (names.stream().anyMatch(n -> n.length() > 18)) {
-            msg.getChannel().sendMessageEmbeds(Utils.error(msg, "Provided username is too long.")).queue();
-            return null;
-        }
-        return names;
     }
 }

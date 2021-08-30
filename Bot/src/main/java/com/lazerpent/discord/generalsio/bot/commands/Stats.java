@@ -127,7 +127,7 @@ public class Stats {
             desc = "Graph statistics of all stored players, either over time or games played.")
     public static MessageEmbed handleShowGraph(@NotNull Message msg,
                                                @Selection({"1v1", "ffa"}) String mode,
-                                               @Selection({"game", "time"}) String graph,
+                                               @Selection({"games", "time"}) String graph,
                                                @Optional Integer bucketSize, @Optional Integer starMin) {
         if (bucketSize == null) {
             bucketSize = 200;

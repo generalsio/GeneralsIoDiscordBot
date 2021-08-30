@@ -2,6 +2,7 @@ package com.lazerpent.discord.generalsio.bot;
 
 import com.lazerpent.discord.generalsio.bot.commands.Game;
 import com.lazerpent.discord.generalsio.bot.commands.Hill;
+import com.lazerpent.discord.generalsio.bot.commands.Punishments;
 import com.lazerpent.discord.generalsio.bot.commands.Stats;
 import com.lazerpent.discord.generalsio.bot.commands.Users;
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -47,7 +48,7 @@ public class Commands extends ListenerAdapter {
 
     static {
         List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
-        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class};
+        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class, Punishments.class};
 
         for (Class<?> classCamelCase : classes) {
             Category category = classCamelCase.getAnnotation(Category.class);
@@ -142,6 +143,9 @@ public class Commands extends ListenerAdapter {
                         s.append("@");
                     }
                     s.append(param.getName());
+                    if (param.getType() == String[].class) {
+                        s.append("...");
+                    }
                 }
                 s.append(param.getAnnotation(Optional.class) == null ? "" : "?").append(bracket ? "]" : "");
             }
@@ -230,42 +234,6 @@ public class Commands extends ListenerAdapter {
         }
 
         return bot_information.build();
-    }
-
-    /**
-     * Command handler for punish command. See Punishments. punish
-     *
-     * @param msg Message Object
-     * @param cmd Parameters
-     */
-    @Command(name = {"addpunish", "punish"}, cat = "In-Game Moderation", desc = "Add user to the punishment list",
-            perms = Constants.Perms.MOD)
-    public static void handleAddPunish(@NotNull Message msg, String[] cmd) {
-        Punishments.punish(msg, cmd);
-    }
-
-    /**
-     * Command handler for disable command. See Punishments. disable
-     *
-     * @param msg Message Object
-     * @param cmd Parameters
-     */
-    @Command(name = {"adddisable", "disable"}, cat = "In-Game Moderation", desc = "Add user to the disable list",
-            perms = Constants.Perms.MOD)
-    public static void handleAddDisable(@NotNull Message msg, String[] cmd) {
-        Punishments.disable(msg, cmd);
-    }
-
-    /**
-     * Command handler for getCommands. See Punishments.getCommands
-     *
-     * @param msg Message Object
-     * @param cmd Parameters
-     */
-    @Command(name = {"getpunishcommand", "getpunishcommands", "cmd"}, perms = Constants.Perms.MOD,
-            cat = "In-Game Moderation", desc = "Gets a list of commands to run to punish players")
-    public static void handleGetCommand(@NotNull Message msg, String[] cmd) {
-        Punishments.getCommands(msg);
     }
 
     @Override
@@ -495,7 +463,7 @@ public class Commands extends ListenerAdapter {
 
         public Pair<Object[], String> args(Message msg, String[] args) {
             Parameter[] params = params();
-            if (args.length > params.length) {
+            if (args.length > params.length && params[params.length-1].getType() != String[].class) {
                 return new ImmutablePair<>(null,
                         "Expected maximum " + params.length + " parameters, found " + args.length + " parameters");
             }
