@@ -36,7 +36,7 @@ public class UserCommandData extends CommandData {
             // This will only have one item, because of the event type
             long id = keys[0];
             return ((MemberImpl) resolved.get(id)).getUser();
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        } catch (NoSuchFieldException | IllegalAccessException | IndexOutOfBoundsException | ClassCastException ignored) {
             return null;
         }
     }
