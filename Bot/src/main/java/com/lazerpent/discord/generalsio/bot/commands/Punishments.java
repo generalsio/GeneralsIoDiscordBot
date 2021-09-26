@@ -5,6 +5,7 @@ import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
+import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
 import org.jetbrains.annotations.NotNull;
@@ -31,21 +32,24 @@ import com.lazerpent.discord.generalsio.bot.Commands.*;
  * A moderator can then pull up a list of the command to run to punish/disable the users. After running a command, the
  * moderator can select to clear the list and start over
  */
-@Category(cat = "mod", name = "Moderation")
+@Category(name = "Moderation")
 public class Punishments {
     /**
      * Allows a moderator to add a list of usernames to the punishment list
      * <p>
      * Run as: punish username1 "username 2" username3 ...
      *
-     * @param msg  Message object from moderator (permission determined prior to call)
-     * @param args List of players delimited by spaces (or using quotes for multiple words)
+     * @param cmd  SlashCommandEvent object from moderator (permission determined prior to call)
+     * @param names List of players delimited by spaces (or using quotes for multiple words)
      */
-    @Command(name = {"punish"}, desc = "Add user to the punishment list",
+    @Command(name = "punish", desc = "Add user to the punishment list",
             perms = Constants.Perms.MOD)
-    public static MessageEmbed handlePunish(@NotNull Message msg, @NotNull String[] names) {
-        Arrays.stream(names).forEach(Database::addPunishment);
-        return Utils.success(msg, "Added players to punishment list.");
+    public static MessageEmbed handlePunish(@NotNull SlashCommandEvent cmd,
+                                            @CommandParameter(name = "names", desc = "List of players delimited by spaces (or using quotes for multiple words)")
+                                            @NotNull String names) {
+        Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(names);
+        Arrays.stream(match.results().map(MatchResult::group).toArray(String[]::new)).forEach(Database::addPunishment);
+        return Utils.success(cmd, "Added players to punishment list.");
     }
 
     /**
@@ -53,14 +57,17 @@ public class Punishments {
      * <p>
      * Run as: disable username1 "username 2" username3 ...
      *
-     * @param msg  Message object from moderator (permission determined prior to call)
-     * @param args List of players delimited by spaces (or using quotes for multiple words)
+     * @param cmd  Message object from moderator (permission determined prior to call)
+     * @param names List of players delimited by spaces (or using quotes for multiple words)
      */
-    @Command(name = {"disable"}, desc = "Add user to the disable list",
+    @Command(name = "disable", desc = "Add user to the disable list",
             perms = Constants.Perms.MOD)
-    public static MessageEmbed handleDisable(@NotNull Message msg, @NotNull String[] names) {
-        Arrays.stream(names).forEach(Database::addDisable);
-        return Utils.success(msg, "Added players to disable list.");
+    public static MessageEmbed handleDisable(@NotNull SlashCommandEvent cmd,
+                                             @CommandParameter(name = "names", desc = "List of players delimited by spaces (or using quotes for multiple words)")
+                                             @NotNull String names) {
+        Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(names);
+        Arrays.stream(match.results().map(MatchResult::group).toArray(String[]::new)).forEach(Database::addDisable);
+        return Utils.success(cmd, "Added players to disable list.");
     }
 
 
@@ -69,10 +76,10 @@ public class Punishments {
      * <p>
      * Run as: cmd
      *
-     * @param msg Message object from moderator (permission determined prior to call)
+     * @param cmd SlashCommandEvent object from moderator (permission determined prior to call)
      */
-    @Command(name = {"getpunish", "getpunishcommand", "getpunishcommands"}, perms = Constants.Perms.MOD, desc = "Gets a list of commands to run to punish players")
-    public static Message handleGetCommands(@NotNull Message msg) {
+    @Command(name = "getpunishcommand", perms = Constants.Perms.MOD, desc = "Gets a list of commands to run to punish players")
+    public static Message handleGetCommands(@NotNull SlashCommandEvent cmd) {
         List<String> punish = new LinkedList<>(), disable = new LinkedList<>();
         Database.getPunishments(punish, disable);
 

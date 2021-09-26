@@ -1,16 +1,15 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
+import com.lazerpent.discord.generalsio.bot.*;
 import com.lazerpent.discord.generalsio.bot.Commands.Category;
 import com.lazerpent.discord.generalsio.bot.Commands.Command;
+import com.lazerpent.discord.generalsio.bot.Commands.CommandParameter;
 import com.lazerpent.discord.generalsio.bot.Commands.Optional;
-import com.lazerpent.discord.generalsio.bot.Constants;
-import com.lazerpent.discord.generalsio.bot.Database;
-import com.lazerpent.discord.generalsio.bot.RoleHandler;
-import com.lazerpent.discord.generalsio.bot.Utils;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
 import org.jetbrains.annotations.NotNull;
@@ -20,9 +19,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-@Category(cat = "game", name = "Game")
+@Category(name = "Game")
 public class Game {
-    private static Message createLinkEmbed(@NotNull Message msg, @NotNull Constants.Server server,
+    private static Message createLinkEmbed(@NotNull SlashCommandEvent cmd, @NotNull Constants.Server server,
                                            @NotNull String link, @Nullable String map, int speed) {
         String baseURL = "https://" + server.host() + "/games/" + Utils.encodeURI(link);
 
@@ -54,8 +53,8 @@ public class Game {
                         .setDescription(playURL + "\n")
                         .appendDescription(speed != 1 ? "\n**Speed:** " + speed : "")
                         .appendDescription(map != null ? "\n**Map:** " + map : "")
-                        .setFooter(msg.getAuthor().getAsTag() + " • " + Database.getGeneralsName(msg.getAuthor().getIdLong()),
-                                msg.getAuthor().getAvatarUrl());
+                        .setFooter(cmd.getMember().getUser().getAsTag() + " • " + Database.getGeneralsName(cmd.getMember().getUser().getIdLong()),
+                                cmd.getMember().getUser().getAvatarUrl());
 
         List<Button> buttons = new ArrayList<>(List.of(
                 Button.link(playURL, "Play"),
@@ -74,78 +73,84 @@ public class Game {
                 .build();
     }
 
-    @Command(name = {"na", "custom", "private"}, desc = "Generate match on NA servers",
+    @Command(name = "custom", desc = "Generate match on NA servers",
             perms = Constants.Perms.USER)
-    public static Message handleNA(@NotNull Message msg, @Optional String code, @Optional String map,
-                                   @Optional Integer speed) {
-        return customLink(msg, Constants.Server.NA, code, map, speed);
+    public static Message handleNA(@NotNull SlashCommandEvent cmd,
+                                   @CommandParameter(name = "code", desc = "ID of the custom room") @Optional String code,
+                                   @CommandParameter(name = "map", desc = "Map name") @Optional String map,
+                                   @CommandParameter(name = "speed", desc = "Speed at which turns pass") @Optional Integer speed) {
+        return customLink(cmd, Constants.Server.NA, code, map, speed);
     }
 
-    @Command(name = {"eu", "eucustom", "euprivate"}, desc = "Generate match on EU servers", perms =
+    @Command(name = "eucustom", desc = "Generate match on EU servers", perms =
             Constants.Perms.USER)
-    public static Message handleEU(@NotNull Message msg, @Optional String code, @Optional String map,
-                                   @Optional Integer speed) {
-        return customLink(msg, Constants.Server.EU, code, map, speed);
+    public static Message handleEU(@NotNull SlashCommandEvent cmd,
+                                   @CommandParameter(name = "code", desc = "ID of the custom room") @Optional String code,
+                                   @CommandParameter(name = "map", desc = "Map name") @Optional String map,
+                                   @CommandParameter(name = "speed", desc = "Speed at which turns pass") @Optional Integer speed) {
+        return customLink(cmd, Constants.Server.EU, code, map, speed);
     }
 
-    @Command(name = {"bot", "botcustom", "botprivate"}, desc = "Generate match on Bot servers", perms =
+    @Command(name = "botcustom", desc = "Generate match on Bot servers", perms =
             Constants.Perms.USER)
-    public static Message handleBOT(@NotNull Message msg, @Optional String code, @Optional String map,
-                                    @Optional Integer speed) {
-        return customLink(msg, Constants.Server.BOT, code, map, speed);
+    public static Message handleBOT(@NotNull SlashCommandEvent cmd,
+                                    @CommandParameter(name = "code", desc = "ID of the custom room") @Optional String code,
+                                    @CommandParameter(name = "map", desc = "Map name") @Optional String map,
+                                    @CommandParameter(name = "speed", desc = "Speed at which turns pass") @Optional Integer speed) {
+        return customLink(cmd, Constants.Server.BOT, code, map, speed);
     }
 
-    private static Message customLink(@NotNull Message msg, @NotNull Constants.Server server, String code, String map,
+    private static Message customLink(@NotNull SlashCommandEvent cmd, @NotNull Constants.Server server, String code, String map,
                                       Integer speed) {
         String link = code != null && code.matches("^[\\d\\w]+$") ? code :
                 Long.toString((long) (Math.random() * Long.MAX_VALUE), 36).substring(0, 4);
         if (map != null && (map.equals("-") || map.equals("."))) map = null;
-        return createLinkEmbed(msg, server, link, map,
+        return createLinkEmbed(cmd, server, link, map,
                 speed != null && (speed == 2 || speed == 3 || speed == 4) ? speed : 1);
     }
 
-    @Command(name = {"plots"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
-    public static Message handlePlots(@NotNull Message msg, @Optional String code) {
-        return createLinkEmbed(msg, Constants.Server.NA, code == null ? "Plots" : code
+    @Command(name = "plots", desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
+    public static Message handlePlots(@NotNull SlashCommandEvent cmd,
+                                      @CommandParameter(name = "code", desc = "ID of the custom room") @Optional String code) {
+        return createLinkEmbed(cmd, Constants.Server.NA, code == null ? "Plots" : code
                 , "Plots Lazerpent", 4);
     }
 
-    @Command(name = {"bogless"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
-    public static Message handleBogless(@NotNull Message msg, @Optional String code) {
-        return createLinkEmbed(msg, Constants.Server.NA, code == null ? "Bogless" : code
+    @Command(name = "bogless", desc = "Create a bogless monsters game", perms = Constants.Perms.USER)
+    public static Message handleBogless(@NotNull SlashCommandEvent cmd,
+                                        @CommandParameter(name = "code", desc = "ID of the custom room") @Optional String code) {
+        return createLinkEmbed(cmd, Constants.Server.NA, code == null ? "Bogless" : code
                 , "bogless monsters", 1);
     }
 
-    @Command(name = {"ping"}, desc = "Ping role", perms = Constants.Perms.USER)
-    public static Object handlePing(@NotNull Message msg) {
-        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+    @Command(name = "ping", desc = "Ping role", perms = Constants.Perms.USER)
+    public static Object handlePing(@NotNull SlashCommandEvent cmd) {
+        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(cmd.getGuild().getIdLong());
 
-        Constants.Mode mode = GUILD_INFO.channelToMode(msg.getChannel().getIdLong());
+        Constants.Mode mode = GUILD_INFO.channelToMode(cmd.getChannel().getIdLong());
         if (mode == null) {
-            return Utils.error(msg, "**!ping** can only be used in a game mode " +
-                                    "channel");
+            return Utils.error(cmd, "**!ping** can only be used in a game mode channel");
         }
 
         if (!RoleHandler.tryPing(mode)) {
-            return Utils.error(msg, "Each role can only be pinged once every 10 " +
-                                    "minutes");
+            return Utils.error(cmd, "Each role can only be pinged once every 10 minutes");
         }
 
-        Role role = msg.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
-        msg.getChannel().sendMessage(Objects.requireNonNull(role).getAsMention() + " (pinged by " + Objects.requireNonNull(msg.getMember()).getAsMention() + ")").queue();
+        Role role = cmd.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
+        cmd.reply(Objects.requireNonNull(role).getAsMention() + " (pinged by " + Objects.requireNonNull(cmd.getMember()).getAsMention() + ")").queue();
         return null;
     }
 
-    @Command(name = {"setuproles"}, desc = "Setup roles menu", perms = Constants.Perms.MOD)
-    public static void handleSetupRoles(@NotNull Message msg) {
-        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+    @Command(name = "setuproles", desc = "Setup roles menu", perms = Constants.Perms.MOD)
+    public static void handleSetupRoles(@NotNull SlashCommandEvent cmd) {
+        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(cmd.getGuild().getIdLong());
 
         StringBuilder sb = new StringBuilder();
         for (Constants.Mode value : Constants.Mode.values()) {
-            sb.append(msg.getGuild().getEmotesByName(value.toString(), false).get(0).getAsMention()).append(" - <@&").append(GUILD_INFO.roles.get(value)).append(">\n");
+            sb.append(cmd.getGuild().getEmotesByName(value.toString(), false).get(0).getAsMention()).append(" - <@&").append(GUILD_INFO.roles.get(value)).append(">\n");
         }
 
-        Message m = msg.getChannel().sendMessageEmbeds(new EmbedBuilder().setTitle("Generals.io Role Selector")
+        Message m = new MessageBuilder().setEmbeds(new EmbedBuilder().setTitle("Generals.io Role Selector")
                 .setDescription("To select one or more roles, simply react with the role you would like to add or" +
                                 " remove. \n\nEach role has a specific channel dedicated to that game mode. " +
                                 "You can also ping all players with the role using **!ping** in that game mode's " +
@@ -154,11 +159,12 @@ public class Game {
                                 "testing a beta version on the BOT server.\n\n" +
                                 sb
                 ).setFooter("You must wait 3 seconds between adding a role and removing it.")
-                .setThumbnail(msg.getGuild().getIconUrl()).build()).complete();
+                .setThumbnail(cmd.getGuild().getIconUrl()).build()).build();
 
         for (Constants.Mode value : Constants.Mode.values()) {
-            m.addReaction(msg.getGuild().getEmotesByName(value.toString(), false).get(0)).queue();
+            m.addReaction(cmd.getGuild().getEmotesByName(value.toString(), false).get(0)).queue();
         }
+        cmd.reply(new MessageBuilder().setEmbeds(Utils.success(cmd, "Added role selector")).build()).queue();
     }
 
 }
