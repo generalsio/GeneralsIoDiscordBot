@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameEvent;
 import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
+import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -358,6 +359,15 @@ public class Commands extends ListenerAdapter {
                 new CommandData("hill", "Top level command for all hill related commands.")
                         .addSubcommandGroups(goth, aoth)).queue();
         Hill.init();
+    }
+
+
+    @Override
+    public void onSlashCommand(@NotNull SlashCommandEvent event) {
+        switch (event.getName()) {
+            case "hill" -> {
+            }
+        }
     }
 
     @Override
