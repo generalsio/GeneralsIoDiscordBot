@@ -105,9 +105,15 @@ public class Game {
     }
 
     @Command(name = {"plots"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
-    public static Message handlePlots(@NotNull Message msg, String code) {
+    public static Message handlePlots(@NotNull Message msg, @Optional String code) {
         return createLinkEmbed(msg, Constants.Server.NA, code == null ? "Plots" : code
                 , "Plots Lazerpent", 4);
+    }
+
+    @Command(name = {"bogless"}, desc = "Create a 4x Plots Lazerpent game", perms = Constants.Perms.USER)
+    public static Message handleBogless(@NotNull Message msg, @Optional String code) {
+        return createLinkEmbed(msg, Constants.Server.NA, code == null ? "Bogless" : code
+                , "bogless monsters", 1);
     }
 
     @Command(name = {"ping"}, desc = "Ping role", perms = Constants.Perms.USER)

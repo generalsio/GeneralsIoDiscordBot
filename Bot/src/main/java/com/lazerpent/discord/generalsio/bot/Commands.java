@@ -1,10 +1,6 @@
 package com.lazerpent.discord.generalsio.bot;
 
-import com.lazerpent.discord.generalsio.bot.commands.Game;
-import com.lazerpent.discord.generalsio.bot.commands.Hill;
-import com.lazerpent.discord.generalsio.bot.commands.Punishments;
-import com.lazerpent.discord.generalsio.bot.commands.Stats;
-import com.lazerpent.discord.generalsio.bot.commands.Users;
+import com.lazerpent.discord.generalsio.bot.commands.*;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Member;
@@ -17,6 +13,10 @@ import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
@@ -333,6 +333,30 @@ public class Commands extends ListenerAdapter {
     @Override
     public void onReady(@NotNull ReadyEvent event) {
         System.out.println(event.getJDA().getGuilds());
+        // There are two types of slash commands
+        //      User level (getJDA().updateCommands(), which can be used in DMs and in the guild.
+        //      Guild level (getGuild(...).updateCommands(), which can only be used in guild channels.
+
+
+        SubcommandGroupData goth = new SubcommandGroupData("goth", "General of the Hill.").addSubcommands(
+                new SubcommandData("delete", "Moderator command - deletes a completed goth challenge.")
+                        .addOption(OptionType.INTEGER, "challangeid", "Challenge ID for target challenge")
+                        .addOption(OptionType.INTEGER, "hillid", "Im going to be completely honest I have no clue " +
+                                                                 "what this is for") // TODO @pasghetti
+
+        ), aoth = new SubcommandGroupData("aoth", "Alliance of the Hill.").addSubcommands(
+                new SubcommandData("delete", "Moderator command - deletes a completed aoth challenge.")
+                        .addOption(OptionType.INTEGER, "challangeid", "Challenge ID for target challenge")
+                        .addOption(OptionType.INTEGER, "hillid", "Im going to be completely honest I have no clue " +
+                                                                 "what this is for") // TODO @pasghetti
+
+        );
+
+        event.getJDA().updateCommands().addCommands(
+                new CommandData("register", "Registers your generals.io name with your discord name")
+                        .addOption(OptionType.STRING, "name", "Your generals.io username", true),
+                new CommandData("hill", "Top level command for all hill related commands.")
+                        .addSubcommandGroups(goth, aoth)).queue();
         Hill.init();
     }
 
@@ -463,7 +487,7 @@ public class Commands extends ListenerAdapter {
 
         public Pair<Object[], String> args(Message msg, String[] args) {
             Parameter[] params = params();
-            if (args.length > params.length && params[params.length-1].getType() != String[].class) {
+            if (args.length > params.length && params[params.length - 1].getType() != String[].class) {
                 return new ImmutablePair<>(null,
                         "Expected maximum " + params.length + " parameters, found " + args.length + " parameters");
             }
@@ -503,15 +527,15 @@ public class Commands extends ListenerAdapter {
                         Selection sel = param.getAnnotation(Selection.class);
                         if (sel != null) {
                             for (String option : sel.value()) {
-                                if (option.toLowerCase().equals(args[j].toLowerCase())) {
+                                if (option.equalsIgnoreCase(args[j])) {
                                     out[i] = option;
                                 }
                             }
 
                             if (out[i] == null) {
                                 return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
-                                    String.join(" | ", sel.value()) + ", is " + args[j]);
-                            }    
+                                                                 String.join(" | ", sel.value()) + ", is " + args[j]);
+                            }
                         } else {
                             out[i] = args[j];
                         }
