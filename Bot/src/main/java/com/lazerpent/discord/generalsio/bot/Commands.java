@@ -371,21 +371,6 @@ public class Commands extends ListenerAdapter {
 
     @Override
     public void onSlashCommand(@NotNull SlashCommandEvent event) {
-        /*
-        Field field = CommandInteractionImpl.class.getDeclaredField("resolved");
-                    field.setAccessible(true);
-
-                    @SuppressWarnings("unchecked") final TLongObjectMap<Object> resolved =
-                            (TLongObjectMap<Object>) field.get(event.getInteraction());
-
-                    final long[] keys = resolved.keys();
-                    // This will only have one item, because of the event type
-                    long id = keys[0];
-                    final User user = ((MemberImpl) resolved.get(id)).getUser();
-
-         */
-
-
         switch (event.getName()) {
             case "hill" -> {
             }
