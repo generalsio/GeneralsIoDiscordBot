@@ -16,6 +16,7 @@ import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEve
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -357,7 +358,13 @@ public class Commands extends ListenerAdapter {
                 new CommandData("register", "Registers your generals.io name with your discord name")
                         .addOption(OptionType.STRING, "name", "Your generals.io username", true),
                 new CommandData("hill", "Top level command for all hill related commands.")
-                        .addSubcommandGroups(goth, aoth)).queue();
+                        .addSubcommandGroups(goth, aoth),
+
+                new CommandData("test", "Test command").addOptions(
+                        new OptionData(OptionType.STRING, "option", "My Option")
+                                .addChoice("option_a", "A")
+                                .addChoice("option_b", "B").addChoice("none", "NA"))
+        ).queue();
         Hill.init();
     }
 
