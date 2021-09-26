@@ -375,6 +375,7 @@ public class Commands extends ListenerAdapter {
             case "hill" -> {
             }
         }
+        event.reply("Hello").setEphemeral(true).queue();
     }
 
     @Override
