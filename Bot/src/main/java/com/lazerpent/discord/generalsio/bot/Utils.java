@@ -1,6 +1,7 @@
 package com.lazerpent.discord.generalsio.bot;
 
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
@@ -91,6 +92,13 @@ public class Utils {
                 .setTimestamp(Instant.now()).build();
     }
 
+    public static void replyError(@NotNull SlashCommandEvent cmd, String description) {
+        cmd.replyEmbeds(error(cmd, description)).queue();
+    }
+
+    public static void replySuccess(@NotNull SlashCommandEvent cmd, String description) {
+        cmd.replyEmbeds(success(cmd, description)).queue();
+    }
 
     public static String encodeURI(String data) {
         return URLEncoder.encode(data, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
