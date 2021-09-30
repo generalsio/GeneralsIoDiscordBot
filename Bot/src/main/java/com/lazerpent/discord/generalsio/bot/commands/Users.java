@@ -127,7 +127,7 @@ public class Users {
         if (Database.noMatch(member.getIdLong(), username)) {
             Database.addDiscordGenerals(member.getIdLong(), username);
         } else {
-            Database.updateDiscordGenerals(member.getIdLong(), member.getIdLong(), username);
+            Database.updateDiscordGenerals(Database.getDiscordId(username), member.getIdLong(), username);
         }
         cmd.reply(new MessageBuilder()
                 .setContent(member.getAsMention())

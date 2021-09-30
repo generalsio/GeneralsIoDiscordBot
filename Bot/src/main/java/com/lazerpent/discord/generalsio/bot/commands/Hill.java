@@ -190,7 +190,7 @@ public class Hill {
         return scoreEmbed(c, mode);
     }
 
-    @Command(name = "hdel", desc = "Delete completed AoTH/GoTH challenge", perms = Constants.Perms.MOD)
+    @Command(name = "hill", subname = "delete", desc = "Delete completed AoTH/GoTH challenge", perms = Constants.Perms.MOD)
     public static void handleGothDel(@NotNull SlashCommandEvent cmd,
                                        @CommandParameter(name = "mode",
                                                desc = "The hill to delete from") Constants.Hill mode,
@@ -238,7 +238,7 @@ public class Hill {
         Utils.replySuccess(cmd, "Challenge Deleted");
     }
 
-    @Command(name = "hset", desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD)
+    @Command(name = "hill", subname = "set", desc = "Replace GoTH or AoTH", perms = Constants.Perms.MOD)
     public static void handleReplace(@NotNull SlashCommandEvent cmd,
                                        @CommandParameter(name = "mode",
                                                desc = "The hill where the incumbent will be replaced") Constants.Hill mode,
@@ -391,7 +391,7 @@ public class Hill {
     }
 
 
-    @Command(name = "hof", desc = "Show GoTH or AoTH hall of fame", perms = Constants.Perms.USER)
+    @Command(name = "hill", subname = "fame", desc = "Show GoTH or AoTH hall of fame", perms = Constants.Perms.USER)
     public static void handleHallOfFame(@NotNull SlashCommandEvent cmd,
                                         @CommandParameter(name = "mode",
                                                 desc = "The hill to view",
@@ -437,7 +437,7 @@ public class Hill {
         cmd.replyEmbeds(hofEmbed.build()).queue();
     }
 
-    @Command(name = "hadd", desc = "Add entry to GoTH or AoTH.", perms = Constants.Perms.MOD)
+    @Command(name = "hill", subname = "add", desc = "Add entry to GoTH or AoTH.", perms = Constants.Perms.MOD)
     public static void handleAdd(@NotNull SlashCommandEvent cmd,
                                    @CommandParameter(name = "mode",
                                            desc = "The hill to add an entry to") Constants.Hill mode,
@@ -481,7 +481,7 @@ public class Hill {
         cmd.replyEmbeds(logScore(Objects.requireNonNull(cmd.getGuild()), c, Constants.Hill.GoTH)).queue();
     }
 
-    @Command(name = "hrecuser", desc = "Show the challenge history of the given GoTH/AoTH", perms =
+    @Command(name = "hill", subname = "record", desc = "Show the challenge history of the given GoTH/AoTH", perms =
             Constants.Perms.USER)
     public static void handleRecordMention(@NotNull SlashCommandEvent cmd,
                                              @CommandParameter(name = "mode",
@@ -515,7 +515,7 @@ public class Hill {
         handleRecord(cmd, mode, number);
     }
 
-    @Command(name = "hreplay", desc = "Show the replays of the given goth / challenge number", perms =
+    @Command(name = "hill", subname = "replay", desc = "Show the replays of the given goth / challenge number", perms =
             Constants.Perms.USER)
     public static void handleReplay(@NotNull SlashCommandEvent cmd,
                                       @CommandParameter(name = "mode",
@@ -558,7 +558,7 @@ public class Hill {
         cmd.replyEmbeds(scoreEmbed(challenge, mode)).queue();
     }
 
-    @Command(name = "hrec", desc = "Show the challenge history of the nth GoTH/AoTH, or the latest " +
+    @Command(name = "hill", subname = "record_id", desc = "Show the challenge history of the nth GoTH/AoTH, or the latest " +
                                                 "GoTH/AoTH if no index is provided", perms = Constants.Perms.USER)
     public static void handleRecord(@NotNull SlashCommandEvent cmd,
                                       @CommandParameter(name = "mode",

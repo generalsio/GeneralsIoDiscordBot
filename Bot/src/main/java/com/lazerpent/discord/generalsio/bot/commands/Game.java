@@ -99,32 +99,6 @@ public class Game {
         cmd.reply(Objects.requireNonNull(role).getAsMention() + " (pinged by " + Objects.requireNonNull(cmd.getMember()).getAsMention() + ")").queue();
     }
 
-    @Command(name = "setuproles", desc = "Setup roles menu", perms = Constants.Perms.MOD)
-    public static void handleSetupRoles(@NotNull SlashCommandEvent cmd) {
-        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(Objects.requireNonNull(cmd.getGuild()).getIdLong());
-
-        StringBuilder sb = new StringBuilder();
-        for (Constants.Mode value : Constants.Mode.values()) {
-            sb.append(cmd.getGuild().getEmotesByName(value.toString(), false).get(0).getAsMention()).append(" - <@&").append(GUILD_INFO.roles.get(value)).append(">\n");
-        }
-
-        Message m = new MessageBuilder().setEmbeds(new EmbedBuilder().setTitle("Generals.io Role Selector")
-                .setDescription("To select one or more roles, simply react with the role you would like to add or" +
-                                " remove. \n\nEach role has a specific channel dedicated to that game mode. " +
-                                "You can also ping all players with the role using **!ping** in that game mode's " +
-                                "channel.\n\nWant the <@&788259902254088192> role? DM or ping " +
-                                "<@356517795791503393>. The tester role is pinged when <@356517795791503393> is " +
-                                "testing a beta version on the BOT server.\n\n" +
-                                sb
-                ).setFooter("You must wait 3 seconds between adding a role and removing it.")
-                .setThumbnail(cmd.getGuild().getIconUrl()).build()).build();
-
-        for (Constants.Mode value : Constants.Mode.values()) {
-            m.addReaction(cmd.getGuild().getEmotesByName(value.toString(), false).get(0)).queue();
-        }
-        Utils.replySuccess(cmd, "Added role selector");
-    }
-
     private static Message customLink(@NotNull SlashCommandEvent cmd, @NotNull Constants.Server server, String code, String map,
                                       Integer speed) {
         String link = code != null && code.matches("^[\\d\\w]+$") ? code :
