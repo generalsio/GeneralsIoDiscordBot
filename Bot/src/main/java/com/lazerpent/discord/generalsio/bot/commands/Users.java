@@ -120,10 +120,10 @@ public class Users {
     @Command(name = "setname", desc = "Change generals.io username of user", perms =
             Constants.Perms.MOD)
     public static void handleSetName(@NotNull SlashCommandEvent cmd,
-                                        @CommandParameter(name = "user", desc = "The mention for the user")
-                                                Member member,
-                                        @CommandParameter(name = "username", desc = "The generals.io username")
-                                                    String username) {
+                                        @CommandParameter(name = "user",
+                                                desc = "The mention for the user") Member member,
+                                        @CommandParameter(name = "username",
+                                                desc = "The generals.io username") String username) {
         if (Database.noMatch(member.getIdLong(), username)) {
             Database.addDiscordGenerals(member.getIdLong(), username);
         } else {
