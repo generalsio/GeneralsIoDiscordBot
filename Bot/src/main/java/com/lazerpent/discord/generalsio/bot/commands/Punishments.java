@@ -39,7 +39,7 @@ public class Punishments {
      * <p>
      * Run as: punish username1 "username 2" username3 ...
      *
-     * @param cmd  SlashCommandEvent object from moderator (permission determined prior to call)
+     * @param cmd   SlashCommandEvent object from moderator (permission determined prior to call)
      * @param names List of players delimited by spaces (or using quotes for multiple words)
      */
     @Command(name = "punish", desc = "Add user to the punishment list",
@@ -47,7 +47,7 @@ public class Punishments {
     public static void handlePunish(@NotNull SlashCommandEvent cmd,
                                     @CommandParameter(name = "names",
                                             desc = "List of players delimited by spaces" +
-                                                    " (or using angle brackets for multiple words)") String names) {
+                                                   " (or using angle brackets for multiple words)") String names) {
         Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(names);
         Arrays.stream(match.results().map(MatchResult::group).toArray(String[]::new)).forEach(Database::addPunishment);
         Utils.replySuccess(cmd, "Added players to punishment list.");
@@ -58,15 +58,15 @@ public class Punishments {
      * <p>
      * Run as: disable username1 "username 2" username3 ...
      *
-     * @param cmd  Message object from moderator (permission determined prior to call)
+     * @param cmd   Message object from moderator (permission determined prior to call)
      * @param names List of players delimited by spaces (or using quotes for multiple words)
      */
     @Command(name = "disable", desc = "Add user to the disable list",
             perms = Constants.Perms.MOD)
     public static void handleDisable(@NotNull SlashCommandEvent cmd,
-                                             @CommandParameter(name = "names",
-                                                     desc = "List of players delimited by spaces " +
-                                                             "(or using angle brackets for multiple words)") String names) {
+                                     @CommandParameter(name = "names",
+                                             desc = "List of players delimited by spaces " +
+                                                    "(or using angle brackets for multiple words)") String names) {
         Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(names);
         Arrays.stream(match.results().map(MatchResult::group).toArray(String[]::new)).forEach(Database::addDisable);
         Utils.replySuccess(cmd, "Added players to disable list.");
@@ -80,7 +80,8 @@ public class Punishments {
      *
      * @param cmd SlashCommandEvent object from moderator (permission determined prior to call)
      */
-    @Command(name = "getpunishcommand", perms = Constants.Perms.MOD, desc = "Gets a list of commands to run to punish players")
+    @Command(name = "getpunishcommand", perms = Constants.Perms.MOD, desc = "Gets a list of commands to run to punish" +
+                                                                            " players")
     public static void handleGetCommands(@NotNull SlashCommandEvent cmd) {
         List<String> punish = new LinkedList<>(), disable = new LinkedList<>();
         Database.getPunishments(punish, disable);

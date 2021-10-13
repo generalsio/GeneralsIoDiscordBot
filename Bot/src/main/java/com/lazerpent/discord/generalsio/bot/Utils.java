@@ -1,7 +1,6 @@
 package com.lazerpent.discord.generalsio.bot;
 
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
@@ -29,7 +28,8 @@ public class Utils {
     }
 
     /**
-     * Creates a generic error message for slash commands with a provided error message (which is put in the embed description)
+     * Creates a generic error message for slash commands with a provided error message (which is put in the embed
+     * description)
      *
      * @param cmd          SlashCommandEvent object containing the user who tried this command
      * @param errorMessage The specific error message to print in the embed description
@@ -54,11 +54,13 @@ public class Utils {
     }
 
     /**
-     * Creates a generic error message for slash commands with a provided error message (which is put in the embed description)
+     * Creates a generic error message for slash commands with a provided error message (which is put in the embed
+     * description)
      *
      * @param cmd SlashCommandEvent object containing the user who tried this command
      */
-    public static MessageEmbed error(@NotNull SlashCommandEvent cmd, @NotNull String title, @NotNull String description) {
+    public static MessageEmbed error(@NotNull SlashCommandEvent cmd, @NotNull String title,
+                                     @NotNull String description) {
         return new EmbedBuilder().setTitle(title).setDescription(description)
                 .setFooter(cmd.getMember().getUser().getAsTag(), cmd.getMember().getUser().getAvatarUrl())
                 .setColor(Constants.Colors.ERROR) // Red
@@ -80,7 +82,8 @@ public class Utils {
     }
 
     /**
-     * Creates a generic success message for slash commands with a provided message (which is put in the embed description)
+     * Creates a generic success message for slash commands with a provided message (which is put in the embed
+     * description)
      *
      * @param cmd SlashCommandEvent object containing the user who completed this command
      */

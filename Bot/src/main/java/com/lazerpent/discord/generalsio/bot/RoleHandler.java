@@ -32,8 +32,13 @@ public class RoleHandler {
             }
             // Get which role corresponds to the reaction
             Constants.Mode mode = Constants.Mode.fromString(event.getReactionEmote().getName());
-            Role r = event.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
-
+            Role r;
+            if (mode == null && event.getReactionEmote().getName().equals("\uD83C\uDFC6")) {
+                r = event.getGuild().getRoleById(GUILD_INFO.eventRole);
+            } else {
+                final Long id = GUILD_INFO.roles.get(mode);
+                r = event.getGuild().getRoleById(id);
+            }
             // Check the rate limit
             Long value = rateLimit.get(Pair.of(event.getUser().getIdLong(), Objects.requireNonNull(r).getIdLong()));
             long time = System.currentTimeMillis();
@@ -42,7 +47,7 @@ public class RoleHandler {
             }
             rateLimit.put(Pair.of(event.getUser().getIdLong(), r.getIdLong()), time + 3000); // 3-second delay
 
-
+            Role finalR = r;
             // If they already have the role, remove it. If they did not have it, add it
             if (event.getMember().getRoles().contains(r)) {
                 event.getGuild().removeRoleFromMember(event.getMember(), r).queue();
@@ -50,14 +55,14 @@ public class RoleHandler {
                 event.getUser().openPrivateChannel().queue(c -> c.sendMessageEmbeds(new EmbedBuilder()
                         .setTitle("Role Removed")
                         .setColor(Constants.Colors.ERROR)
-                        .setDescription("You have been removed from the " + r.getName() + " role").build()).queue());
+                        .setDescription("You have been removed from the " + finalR.getName() + " role").build()).queue());
             } else {
                 event.getGuild().addRoleToMember(event.getMember(), r).queue();
 
                 event.getUser().openPrivateChannel().queue(c -> c.sendMessageEmbeds(new EmbedBuilder()
                         .setTitle("Role Added")
                         .setColor(Constants.Colors.SUCCESS)
-                        .setDescription("You have been added to the " + r.getName() + " role").build()).queue());
+                        .setDescription("You have been added to the " + finalR.getName() + " role").build()).queue());
             }
         }
     }

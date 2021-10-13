@@ -27,8 +27,8 @@ public class Users {
 
     @Command(name = "user", perms = Constants.Perms.USER, desc = "Show Discord user for a generals username")
     public static void handleUserGenerals(@NotNull SlashCommandEvent cmd,
-                                            @CommandParameter(name = "username",
-                                                    desc = "The generals username") String username) {
+                                          @CommandParameter(name = "username",
+                                                  desc = "The generals username") String username) {
         Database.User user = Database.User.fromUsername(username);
         if (user == null) {
             Utils.replyError(cmd, username + " is not registered to any Discord user.");
@@ -39,12 +39,12 @@ public class Users {
     }
 
     @Command(name = "profile", perms = Constants.Perms.USER, desc = "Show generals username for the given " +
-                                                                              "Discord " +
-                                                                              "user, or the message author")
+                                                                    "Discord " +
+                                                                    "user, or the message author")
     public static void handleUserDiscord(@NotNull SlashCommandEvent cmd,
-                                           @CommandParameter(name = "user",
-                                                   desc = "The user mentioned on Discord",
-                                                   optional = true) Member mention) {
+                                         @CommandParameter(name = "user",
+                                                 desc = "The user mentioned on Discord",
+                                                 optional = true) Member mention) {
         Database.User user;
         user = Database.User.fromId(Objects.requireNonNullElseGet(mention, cmd::getMember).getIdLong());
 
@@ -59,26 +59,27 @@ public class Users {
     private static Message embedUser(Database.User user) {
         return new MessageBuilder()
                 .setEmbeds(new EmbedBuilder().setTitle("Profile", "https://generals.io/profiles/" +
-                                Utils.encodeURI(user.username())).setColor(Constants.Colors.PRIMARY)
-                                .appendDescription("**Username:** " + user.username())
-                                .appendDescription("\n**Discord:** <@" + user.discordId() + ">")
-                                .build())
+                                                                  Utils.encodeURI(user.username())).setColor(Constants.Colors.PRIMARY)
+                        .appendDescription("**Username:** " + user.username())
+                        .appendDescription("\n**Discord:** <@" + user.discordId() + ">")
+                        .build())
                 .setActionRows(ActionRow.of(Button.link("https://generals.io/profiles/" +
-                        Utils.encodeURI(user.username()), "Visit")))
+                                                        Utils.encodeURI(user.username()), "Visit")))
                 .build();
     }
 
     @Command(name = "addname", desc = "Register generals.io username")
     public static void handleAddName(@NotNull SlashCommandEvent cmd,
-                                       @CommandParameter(name = "username",
-                                               desc = "The generals.io username") String username) {
-        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(Objects.requireNonNull(cmd.getGuild()).getIdLong());
+                                     @CommandParameter(name = "username",
+                                             desc = "The generals.io username") String username) {
+        final Constants.GuildInfo GUILD_INFO =
+                Constants.GUILD_INFO.get(Objects.requireNonNull(cmd.getGuild()).getIdLong());
 
         Database.User curEntry = Database.User.fromId(Objects.requireNonNull(cmd.getMember()).getIdLong());
         if (curEntry != null) {
             Utils.replyError(cmd, "You're already registered as **" + curEntry.username() +
-                                    "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
-                                    "to change your username.");
+                                  "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
+                                  "to change your username.");
             return;
         }
 
@@ -114,16 +115,17 @@ public class Users {
             Objects.requireNonNull(cmd.getGuild()).modifyNickname(Objects.requireNonNull(cmd.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
         }
 
-        cmd.replyEmbeds(new EmbedBuilder().setTitle("Auto-Nick").setDescription("...is " + nickWupey).build()).queue();
+        cmd.replyEmbeds(new EmbedBuilder().setTitle("Auto-Nick").setDescription("Switched to " + (nickWupey ?
+                "enabled." : "disabled.")).build()).queue();
     }
 
     @Command(name = "setname", desc = "Change generals.io username of user", perms =
             Constants.Perms.MOD)
     public static void handleSetName(@NotNull SlashCommandEvent cmd,
-                                        @CommandParameter(name = "user",
-                                                desc = "The mention for the user") Member member,
-                                        @CommandParameter(name = "username",
-                                                desc = "The generals.io username") String username) {
+                                     @CommandParameter(name = "user",
+                                             desc = "The mention for the user") Member member,
+                                     @CommandParameter(name = "username",
+                                             desc = "The generals.io username") String username) {
         if (Database.noMatch(member.getIdLong(), username)) {
             Database.addDiscordGenerals(member.getIdLong(), username);
         } else {

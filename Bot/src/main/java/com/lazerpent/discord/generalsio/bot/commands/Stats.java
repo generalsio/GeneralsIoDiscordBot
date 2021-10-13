@@ -68,8 +68,8 @@ public class Stats {
 
     @Command(name = "graph", subname = "add", desc = "Add user to graph", perms = Constants.Perms.USER)
     public static void handleGraphAdd(@NotNull SlashCommandEvent cmd,
-                                              @CommandParameter(name = "username",
-                                                      desc = "The player to add") String username) {
+                                      @CommandParameter(name = "username",
+                                              desc = "The player to add") String username) {
         if (!REQUEST_LIMITER.tryAcquire()) {
             Utils.replyError(cmd, "Too many commands are being processed at once! Try again later.");
             return;
@@ -123,19 +123,19 @@ public class Stats {
     @Command(name = "graph", subname = "show", perms = Constants.Perms.USER,
             desc = "Graph statistics of all stored players, either over time or games played.")
     public static void handleShowGraph(@NotNull SlashCommandEvent cmd,
-                                               @CommandParameter(name = "mode",
-                                                       desc = "The game mode to consider",
-                                                       choices ={"1v1", "ffa"}) String mode,
-                                               @CommandParameter(name = "x_axis",
-                                                       desc = "The scale to graph games against",
-                                                       choices = {"games", "time"}) String graph,
-                                               @CommandParameter(name = "bucket_size",
-                                                       desc = "The number of games to average to find win rate",
-                                                       optional = true) Integer bucketSize,
-                                               @CommandParameter(name = "star_min",
-                                                       desc = "The minimum number of stars an opponent can have for " +
-                                                               "a game to be considered in the graph",
-                                                       optional = true) Integer starMin) {
+                                       @CommandParameter(name = "mode",
+                                               desc = "The game mode to consider",
+                                               choices = {"1v1", "ffa"}) String mode,
+                                       @CommandParameter(name = "x_axis",
+                                               desc = "The scale to graph games against",
+                                               choices = {"games", "time"}) String graph,
+                                       @CommandParameter(name = "bucket_size",
+                                               desc = "The number of games to average to find win rate",
+                                               optional = true) Integer bucketSize,
+                                       @CommandParameter(name = "star_min",
+                                               desc = "The minimum number of stars an opponent can have for " +
+                                                      "a game to be considered in the graph",
+                                               optional = true) Integer starMin) {
         if (bucketSize == null) {
             bucketSize = 200;
         }
@@ -182,7 +182,7 @@ public class Stats {
         EXECUTOR.execute(() -> {
             if (!REQUEST_LIMITER.tryAcquire()) {
                 cmd.getHook().editOriginalEmbeds(
-                        Utils.error(cmd, "Too many commands are being processed at once! Try again later."))
+                                Utils.error(cmd, "Too many commands are being processed at once! Try again later."))
                         .queue();
                 return;
             }
@@ -190,7 +190,7 @@ public class Stats {
             ByteArrayOutputStream bytes = renderGraph(cmd, chart);
             if (bytes == null) return;
             cmd.getHook().editOriginal(new MessageBuilder().setEmbeds(
-                    new EmbedBuilder().setTitle("Stat Graph").setImage("attachment://graph.png").build()).build())
+                            new EmbedBuilder().setTitle("Stat Graph").setImage("attachment://graph.png").build()).build())
                     .addFile(bytes.toByteArray(), "graph.png").queue();
             REQUEST_LIMITER.release();
         });
@@ -283,7 +283,8 @@ public class Stats {
 
     @Command(name = "getstats", desc = "Calculate a player's stats.", perms = Constants.Perms.USER)
     public static void handleGetStats(@NotNull SlashCommandEvent cmd,
-                                      @CommandParameter(name = "username", desc = "The player whose stats should be calculated")
+                                      @CommandParameter(name = "username", desc = "The player whose stats should be " +
+                                                                                  "calculated")
                                               String username) {
         if (!REQUEST_LIMITER.tryAcquire()) {
             Utils.replyError(cmd, "Too many commands are being processed at once! Try again later.");
@@ -312,7 +313,7 @@ public class Stats {
             Pair<Integer, Integer> overall = res2v2.get(username);
             if (overall == null) {
                 cmd.getHook().editOriginalEmbeds(
-                        Utils.error(cmd,"Could not find recent 2v2 games for " + username + ".")).queue();
+                        Utils.error(cmd, "Could not find recent 2v2 games for " + username + ".")).queue();
             } else {
                 EmbedBuilder embed2v2 = new EmbedBuilder().setTitle("2v2 Stats").setColor(Constants.Colors.SUCCESS)
                         .setDescription(String.format("\n**Overall Record:** %dW-%dL (%.2f%%)", overall.getLeft(),

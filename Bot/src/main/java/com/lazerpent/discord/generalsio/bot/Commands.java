@@ -18,6 +18,7 @@ import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
+import net.dv8tion.jda.api.interactions.commands.privileges.CommandPrivilege;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.PrintWriter;
@@ -45,24 +46,24 @@ public class Commands extends ListenerAdapter {
                 methods.addAll(Arrays.asList(classCamelCase.getDeclaredMethods()));
             }
         }
-        for(Method method : methods) {
+        for (Method method : methods) {
             Command command = method.getAnnotation(Command.class);
-            if(command == null) continue;
-            if(!method.getReturnType().equals(Void.TYPE)) {
+            if (command == null) continue;
+            if (!method.getReturnType().equals(Void.TYPE)) {
                 throw new IllegalStateException("Command " + command.name() + " cannot have non-void return type.");
             }
             List<String> names = new ArrayList<>();
             names.add(command.name());
-            if(command.subgroup().length() != 0) names.add(0, command.subgroup());
-            if(command.subname().length() != 0) names.add(0, command.subname());
-            while(names.size() < 3) names.add("");
+            if (command.subgroup().length() != 0) names.add(0, command.subgroup());
+            if (command.subname().length() != 0) names.add(0, command.subname());
+            while (names.size() < 3) names.add("");
             slashCommands.putIfAbsent(names.get(2), new HashMap<>());
             slashCommands.get(names.get(2)).putIfAbsent(names.get(1), new HashMap<>());
-            if(!slashCommands.get(names.get(2)).get(names.get(1)).containsKey(names.get(0))) {
+            if (!slashCommands.get(names.get(2)).get(names.get(1)).containsKey(names.get(0))) {
                 slashCommands.get(names.get(2)).get(names.get(1)).put(names.get(0), method);
             } else {
                 throw new IllegalStateException("Colliding command names: " + command.name()
-                        + "/" + command.subgroup() + "/" + command.subname());
+                                                + "/" + command.subgroup() + "/" + command.subname());
             }
         }
     }
@@ -102,9 +103,9 @@ public class Commands extends ListenerAdapter {
 
     @Command(name = "help", desc = "List commands")
     public static void handleHelp(@NotNull SlashCommandEvent cmd,
-                                          @CommandParameter(name = "perms",
-                                                  desc = "Permission level",
-                                                  optional = true) Integer perms) {
+                                  @CommandParameter(name = "perms",
+                                          desc = "Permission level",
+                                          optional = true) Integer perms) {
         if (perms == null) {
             perms = Constants.Perms.get(Objects.requireNonNull(cmd.getMember()));
         }
@@ -113,8 +114,8 @@ public class Commands extends ListenerAdapter {
                 .setFooter("Permissions: " + perms);
 
         Map<String, List<String>> categoryCommands = new HashMap<>();
-        for(Map<String, Map<String, Method>> a : slashCommands.values()) {
-            for(Map<String, Method> b : a.values()) {
+        for (Map<String, Map<String, Method>> a : slashCommands.values()) {
+            for (Map<String, Method> b : a.values()) {
                 for (Method method : b.values()) {
                     Command curCommand = method.getAnnotation(Command.class);
                     String category = "";
@@ -125,7 +126,7 @@ public class Commands extends ListenerAdapter {
                     if (curCommand.perms() <= perms) {
                         categoryCommands.putIfAbsent(category, new ArrayList<>());
                         categoryCommands.get(category).add((curCommand.name() + " " + curCommand.subgroup() +
-                                " " + curCommand.subname()).trim());
+                                                            " " + curCommand.subname()).trim());
                     }
                 }
             }
@@ -163,35 +164,35 @@ public class Commands extends ListenerAdapter {
 
     private List<OptionData> collectOptionData(Method method) {
         List<OptionData> optionBuffer = new ArrayList<>();
-        for(Parameter param : method.getParameters()) {
+        for (Parameter param : method.getParameters()) {
             Class<?> type = param.getType();
             CommandParameter optionProperties = param.getAnnotation(CommandParameter.class);
-            if(optionProperties == null) {
+            if (optionProperties == null) {
                 continue;
             }
             OptionType optionType;
             String[] choices = new String[0];
-            if(type == int.class || type == Integer.class) {
+            if (type == int.class || type == Integer.class) {
                 optionType = OptionType.INTEGER;
-            } else if(type == double.class || type == Double.class) {
+            } else if (type == double.class || type == Double.class) {
                 optionType = OptionType.NUMBER;
-            } else if(type == boolean.class || type == Boolean.class) {
+            } else if (type == boolean.class || type == Boolean.class) {
                 optionType = OptionType.BOOLEAN;
-            } else if(optionProperties.choices().length > 0) {
+            } else if (optionProperties.choices().length > 0) {
                 optionType = OptionType.STRING;
                 choices = optionProperties.choices();
-            } else if(type == String.class) {
+            } else if (type == String.class) {
                 optionType = OptionType.STRING;
-            } else if(type == Member.class) {
+            } else if (type == Member.class) {
                 // note: assumes that bot will never handle commands in DMs (all mentioned users are members)
                 optionType = OptionType.USER;
-            } else if(type == MessageChannel.class) {
+            } else if (type == MessageChannel.class) {
                 optionType = OptionType.CHANNEL;
-            } else if(type == Role.class) {
+            } else if (type == Role.class) {
                 optionType = OptionType.ROLE;
-            } else if(type == IMentionable.class) {
+            } else if (type == IMentionable.class) {
                 optionType = OptionType.MENTIONABLE;
-            } else if(type.isEnum()) {
+            } else if (type.isEnum()) {
                 optionType = OptionType.STRING;
                 choices = Arrays.stream(type.getEnumConstants()).map(Object::toString).toArray(String[]::new);
             } else {
@@ -203,7 +204,7 @@ public class Commands extends ListenerAdapter {
             }
             OptionData od = new OptionData(optionType, optionProperties.name(), optionProperties.desc(),
                     !optionProperties.optional());
-            for(String choice : choices) {
+            for (String choice : choices) {
                 od.addChoice(choice, choice);
             }
             optionBuffer.add(od);
@@ -215,53 +216,89 @@ public class Commands extends ListenerAdapter {
     public void onReady(@NotNull ReadyEvent event) {
         System.out.println(event.getJDA().getGuilds());
         List<CommandData> slashCommandBuffer = new ArrayList<>();
-        for(Map.Entry<String, Map<String, Map<String, Method>>> entry : slashCommands.entrySet()) {
+        Map<String, Collection<? extends CommandPrivilege>> privileges = new HashMap<>();
+        for (Map.Entry<String, Map<String, Map<String, Method>>> entry : slashCommands.entrySet()) {
             String name1 = entry.getKey();
             CommandData cd = null;
-            if(name1.length() != 0) {
+            if (name1.length() != 0) {
                 cd = new CommandData(name1, "Name of group of commands");
             }
-            for(Map.Entry<String, Map<String, Method>> subgroupEntry : entry.getValue().entrySet()) {
+            Method method = null;
+            for (Map.Entry<String, Map<String, Method>> subgroupEntry : entry.getValue().entrySet()) {
                 String name2 = subgroupEntry.getKey();
                 SubcommandGroupData sgd = null;
-                if(name2.length() != 0) {
-                    if(cd == null) {
+                if (name2.length() != 0) {
+                    if (cd == null) {
                         cd = new CommandData(name2, "Name of group of commands");
                     } else {
                         sgd = new SubcommandGroupData(name2, "Name of subgroup of commands");
                         cd.addSubcommandGroups(sgd);
                     }
                 }
-                for(Map.Entry<String, Method> subcommandEntry : subgroupEntry.getValue().entrySet()) {
+                for (Map.Entry<String, Method> subcommandEntry : subgroupEntry.getValue().entrySet()) {
                     String name3 = subcommandEntry.getKey();
-                    Method method = subcommandEntry.getValue();
-                    if(cd == null) {
+                    method = subcommandEntry.getValue();
+                    if (cd == null) {
                         cd = new CommandData(name3, method.getAnnotation(Command.class).desc());
                         cd.addOptions(collectOptionData(method));
                     } else {
                         SubcommandData sd = new SubcommandData(name3, method.getAnnotation(Command.class).desc());
                         sd.addOptions(collectOptionData(method));
-                        if(sgd != null) {
+                        if (sgd != null) {
                             sgd.addSubcommands(sd);
                         } else {
                             cd.addSubcommands(sd);
                         }
                     }
-                    if(name2.length() == 0) {
+                    if (name2.length() == 0) {
+                        if (method.getAnnotation(Command.class).perms() == Constants.Perms.MOD) {
+                            cd.setDefaultEnabled(false);
+                            privileges.putIfAbsent(name3,
+                                    Constants.Perms.getMod(event.getJDA().getGuilds().get(0).getIdLong()));
+                        }
                         slashCommandBuffer.add(cd);
                         cd = null;
                     }
                 }
-                if(name1.length() == 0 && cd != null) {
+                if (name1.length() == 0 && cd != null) {
+                    if (Objects.requireNonNull(method).getAnnotation(Command.class).perms() == Constants.Perms.MOD) {
+                        cd.setDefaultEnabled(false);
+                        privileges.putIfAbsent(name2,
+                                Constants.Perms.getMod(event.getJDA().getGuilds().get(0).getIdLong()));
+                    }
                     slashCommandBuffer.add(cd);
                     cd = null;
                 }
             }
-            if(cd != null) {
+            if (cd != null) {
+                if (Objects.requireNonNull(method).getAnnotation(Command.class).perms() == Constants.Perms.MOD) {
+                    cd.setDefaultEnabled(false);
+                    privileges.putIfAbsent(name1,
+                            Constants.Perms.getMod(event.getJDA().getGuilds().get(0).getIdLong()));
+                }
                 slashCommandBuffer.add(cd);
             }
         }
-        event.getJDA().updateCommands().addCommands(slashCommandBuffer).queue();
+        // NOTE: UPDATING ONE COMMAND WILL NOT UPDATE THE LIST - THIS MUST BE TOGGLED TO BE TRUE
+        if (event.getJDA().retrieveCommands().complete().size() != slashCommandBuffer.size() ||
+            System.getenv("UPDATE_COMMANDS") != null) {
+            event.getJDA().updateCommands().queue();
+
+            // This assumes that guild 0 is one of the guilds in Constants.GUILD_DATA
+            final Guild guild = event.getJDA().getGuilds().get(0);
+            guild.updateCommands().addCommands(slashCommandBuffer).queue();
+
+            Map<String, Collection<? extends CommandPrivilege>> map = privileges;
+            privileges = new HashMap<>();
+            var complete = guild.retrieveCommands().complete();
+            for (var command : complete) {
+                if (map.containsKey(command.getName())) {
+                    privileges.put(command.getId(), map.get(command.getName()));
+                }
+            }
+
+            guild.updateCommandPrivileges(privileges).queue();
+        }
         Hill.init();
     }
 
@@ -269,12 +306,12 @@ public class Commands extends ListenerAdapter {
     public void onSlashCommand(@NotNull SlashCommandEvent event) {
         List<String> names = new ArrayList<>();
         names.add(event.getName());
-        if(event.getSubcommandGroup() != null) names.add(0, event.getSubcommandGroup());
-        if(event.getSubcommandName() != null) names.add(0, event.getSubcommandName());
-        while(names.size() < 3) names.add("");
+        if (event.getSubcommandGroup() != null) names.add(0, event.getSubcommandGroup());
+        if (event.getSubcommandName() != null) names.add(0, event.getSubcommandName());
+        while (names.size() < 3) names.add("");
         Method command = slashCommands.get(names.get(2)).get(names.get(1)).get(names.get(0));
         try {
-            if(command != null) {
+            if (command != null) {
                 if (command.getAnnotation(Command.class).perms() != Constants.Perms.NONE) {
                     if (Database.getGeneralsName(Objects.requireNonNull(event.getMember()).getIdLong()) == null) {
                         event.reply(new MessageBuilder().setEmbeds(
@@ -313,7 +350,7 @@ public class Commands extends ListenerAdapter {
                         case NUMBER -> opt.getAsDouble();
                     });
                 }
-                while(args.size() < command.getParameters().length) {
+                while (args.size() < command.getParameters().length) {
                     args.add(null); // optional parameters
                 }
                 Object ret = command.invoke(null, args.toArray());
@@ -321,7 +358,7 @@ public class Commands extends ListenerAdapter {
                     throw new IllegalStateException("Command " + event.getName() + " must have void return type.");
                 }
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             logIfPresent(e, Objects.requireNonNull(event.getGuild()),
                     Objects.requireNonNull(event.getMember()).getAsMention() + ", " + event.getCommandString());
         }
@@ -403,9 +440,13 @@ public class Commands extends ListenerAdapter {
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Command {
         String name();
+
         String subgroup() default "";
+
         String subname() default "";
+
         String desc();
+
         int perms() default Constants.Perms.NONE;
     }
 
@@ -418,8 +459,11 @@ public class Commands extends ListenerAdapter {
     @Retention(RetentionPolicy.RUNTIME)
     public @interface CommandParameter {
         String name();
+
         String desc();
+
         boolean optional() default false;
-        String[] choices() default { };
+
+        String[] choices() default {};
     }
 }

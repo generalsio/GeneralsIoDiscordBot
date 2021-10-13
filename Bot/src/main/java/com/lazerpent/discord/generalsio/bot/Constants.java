@@ -2,10 +2,12 @@ package com.lazerpent.discord.generalsio.bot;
 
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.interactions.commands.privileges.CommandPrivilege;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,6 +37,8 @@ public class Constants {
                     .setIgnoreChannels(871581355711012875L)
                     .setRolesMessage(871842464917491803L)
                     .setModeratorRole(871581355031560289L)
+                    .setDeveloperRole(871581355031560288L)
+                    .setEventNotificationRole(871581354800861200L)
                     .setDevelopment(true)
                     .build(),
 
@@ -57,9 +61,11 @@ public class Constants {
                             Hill.AoTH, 851232536482021377L
                     ))
                     .setIgnoreChannels(774660554362716181L)
-                    .setRolesMessage(795825358905409606L)
+                    .setRolesMessage(896844526713454593L)
                     .setModeratorRole(309536399005188097L)
+                    .setDeveloperRole(252879375089926145L)
                     .setErrorChannel(880559867818037248L)
+                    .setEventNotificationRole(896836627895320606L)
                     .build()
     );
 
@@ -143,9 +149,11 @@ public class Constants {
         public Set<Long> ignoreChannels;
         public long rolesMessage;
         public long moderatorRole;
+        public long developerRole;
         public Map<Hill, Long> hillRoles;
         public boolean development;
         public long errorChannel = -1;
+        public long eventRole;
         private boolean built;
 
         public GuildInfo() {
@@ -194,6 +202,12 @@ public class Constants {
             return this;
         }
 
+        public GuildInfo setDeveloperRole(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
+            this.developerRole = id;
+            return this;
+        }
+
         public GuildInfo setHillRoles(Map<Hill, Long> roles) {
             if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.hillRoles = roles;
@@ -209,6 +223,12 @@ public class Constants {
         public GuildInfo setErrorChannel(long id) {
             if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.errorChannel = id;
+            return this;
+        }
+
+        public GuildInfo setEventNotificationRole(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
+            this.eventRole = id;
             return this;
         }
 
@@ -239,6 +259,13 @@ public class Constants {
             } else {
                 return Perms.NONE;
             }
+        }
+
+        public static List<CommandPrivilege> getMod(long guildId) {
+            return List.of(CommandPrivilege.enableRole(GUILD_INFO.get(guildId).moderatorRole),
+                    CommandPrivilege.enableRole(GUILD_INFO.get(guildId).developerRole),
+                    CommandPrivilege.enableUser(426133274692419615L)
+            );
         }
     }
 }
