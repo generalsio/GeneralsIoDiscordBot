@@ -1,77 +1,69 @@
 package com.lazerpent.discord.generalsio.bot;
 
-import com.lazerpent.discord.generalsio.bot.commands.Game;
-import com.lazerpent.discord.generalsio.bot.commands.Hill;
-import com.lazerpent.discord.generalsio.bot.commands.Punishments;
-import com.lazerpent.discord.generalsio.bot.commands.Stats;
-import com.lazerpent.discord.generalsio.bot.commands.Users;
+import com.lazerpent.discord.generalsio.bot.commands.*;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
-import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameEvent;
 import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
-import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
+import net.dv8tion.jda.api.interactions.commands.privileges.CommandPrivilege;
 import org.jetbrains.annotations.NotNull;
 
-import javax.annotation.Nonnull;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.lang.reflect.*;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.regex.MatchResult;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Commands extends ListenerAdapter {
 
-    static final String PREFIX = "!";
-
-    // Maps holding all command methods.
-    private static final Map<String, List<CommandMethod>> commands = new HashMap<>();
-
-    // Maps holding all categories that have their own class.
-    private static final Map<String, Category> categories = new HashMap<>();
+    // Map holding all slash commands. Identifiers must be unique. Aliases will not be considered.
+    private static final Map<String, Map<String, Map<String, Method>>> slashCommands = new HashMap<>();
 
     static {
         List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
-        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class, Punishments.class};
+        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class, Punishments.class, Announcements.class};
 
         for (Class<?> classCamelCase : classes) {
-            Category category = classCamelCase.getAnnotation(Category.class);
-            if (category != null) {
+            if (classCamelCase.getAnnotation(Category.class) != null) {
                 methods.addAll(Arrays.asList(classCamelCase.getDeclaredMethods()));
-                categories.put(category.cat(), category);
             }
         }
-
         for (Method method : methods) {
-            Command cmd = method.getAnnotation(Command.class);
-            if (cmd == null) {
-                continue;
+            Command command = method.getAnnotation(Command.class);
+            if (command == null) continue;
+            if (!method.getReturnType().equals(Void.TYPE)) {
+                throw new IllegalStateException("Command " + command.name() + " cannot have non-void return type.");
             }
-
-            for (String name : cmd.name()) {
-                final CommandMethod command = new CommandMethod(method);
-                final List<CommandMethod> commandMethods = commands.get(name);
-                if (commandMethods != null) {
-                    commandMethods.add(command);
-                } else {
-                    commands.put(name, new ArrayList<>(Collections.singleton(command)));
-                }
+            List<String> names = new ArrayList<>();
+            names.add(command.name());
+            if (command.subgroup().length() != 0) names.add(0, command.subgroup());
+            if (command.subname().length() != 0) names.add(0, command.subname());
+            while (names.size() < 3) names.add("");
+            slashCommands.putIfAbsent(names.get(2), new HashMap<>());
+            slashCommands.get(names.get(2)).putIfAbsent(names.get(1), new HashMap<>());
+            if (!slashCommands.get(names.get(2)).get(names.get(1)).containsKey(names.get(0))) {
+                slashCommands.get(names.get(2)).get(names.get(1)).put(names.get(0), method);
+            } else {
+                throw new IllegalStateException("Colliding command names: " + command.name()
+                                                + "/" + command.subgroup() + "/" + command.subname());
             }
         }
     }
@@ -109,231 +101,267 @@ public class Commands extends ListenerAdapter {
         logIfPresent(e, g, "");
     }
 
-    private static String formatUsage(String cmd, CommandMethod method) {
-        StringBuilder s = new StringBuilder(PREFIX + cmd);
-        for (Parameter param : method.params()) {
-            if (param.getType() != Message.class) {
-                boolean bracket = true;
-                if (param.getType().isEnum() || param.getAnnotation(Selection.class) != null) {
-                    String[] names;
-                    if (param.getType().isEnum()) {
-                        try {
-                            Object ret = param.getType().getMethod("values").invoke(null);
-                            names = new String[Array.getLength(ret)];
-                            for (int k = 0; k < names.length; k++) {
-                                String name = (String) param.getType().getMethod("name").invoke(Array.get(ret, k));
-                                names[k] = name.toLowerCase();
-                            }
-                        } catch (Exception e) {
-                            throw new IllegalStateException(e.getMessage());
-                        }
-                    } else {
-                        names = param.getAnnotation(Selection.class).value();
-                    }
-
-                    if (names.length != 1) {
-                        s.append(" [").append(String.join(" | ", names));
-                    } else {
-                        bracket = false;
-                        s.append(" ").append(names[0]);
-                    }
-                } else {
-                    s.append(" [");
-                    if (param.getType() == Member.class) {
-                        s.append("@");
-                    }
-                    s.append(param.getName());
-                    if (param.getType() == String[].class) {
-                        s.append("...");
-                    }
-                }
-                s.append(param.getAnnotation(Optional.class) == null ? "" : "?").append(bracket ? "]" : "");
-            }
+    @Command(name = "help", desc = "List commands")
+    public static void handleHelp(@NotNull SlashCommandEvent cmd,
+                                  @CommandParameter(name = "perms",
+                                          desc = "Permission level",
+                                          optional = true) Integer perms) {
+        if (perms == null) {
+            perms = Constants.Perms.get(Objects.requireNonNull(cmd.getMember()));
         }
-        return s.toString();
-    }
-
-    @Command(name = {"help"}, desc = "List commands", priority = 1)
-    public static MessageEmbed handleHelp(@NotNull Message msg, @Optional Integer perms) {
-        if (perms == null)
-            perms = Constants.Perms.get(Objects.requireNonNull(msg.getMember()));
-
         EmbedBuilder embed = new EmbedBuilder().setColor(Constants.Colors.PRIMARY)
                 .setTitle("Bot Help")
                 .setFooter("Permissions: " + perms);
 
-        Map<String, Map<String, CommandMethod>> categoryCommands = new HashMap<>();
-        for (List<CommandMethod> methodList : commands.values()) {
-            for (CommandMethod method : methodList) {
-                Command cmd = method.command();
-                String category = cmd.cat();
-                if (category.equals("")) {
-                    Category cat = method.method().getDeclaringClass().getAnnotation(Category.class);
+        Map<String, List<String>> categoryCommands = new HashMap<>();
+        for (Map<String, Map<String, Method>> a : slashCommands.values()) {
+            for (Map<String, Method> b : a.values()) {
+                for (Method method : b.values()) {
+                    Command curCommand = method.getAnnotation(Command.class);
+                    String category = "";
+                    Category cat = method.getDeclaringClass().getAnnotation(Category.class);
                     if (cat != null) {
-                        category = cat.cat();
+                        category = cat.name();
+                    }
+                    if (curCommand.perms() <= perms) {
+                        categoryCommands.putIfAbsent(category, new ArrayList<>());
+                        categoryCommands.get(category).add((curCommand.name() + " " + curCommand.subgroup() +
+                                                            " " + curCommand.subname()).trim());
                     }
                 }
-                if (cmd.perms() <= perms) {
-                    categoryCommands.putIfAbsent(category, new HashMap<>());
-                    categoryCommands.get(category).put(cmd.name()[0], method);
-                }
             }
         }
 
-        for (Map.Entry<String, Map<String, CommandMethod>> entry : categoryCommands.entrySet()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(entry.getValue().keySet().stream().map(x -> "!" + x).collect(Collectors.joining(", ")));
+        for (Map.Entry<String, List<String>> entry : categoryCommands.entrySet()) {
+            String commandList = entry.getValue().stream().map(x -> "/" + x).collect(Collectors.joining(", "));
 
             if (entry.getKey().equals("")) {
-                embed.setDescription(sb.toString());
-                continue;
+                embed.setDescription(commandList);
+            } else {
+                embed = embed.addField(entry.getKey(), commandList, false);
             }
-
-            String catName = entry.getKey();
-            if (categories.containsKey(catName)) {
-                catName = categories.get(catName).name();
-            }
-
-            embed = embed.addField(catName, sb.toString(), false);
         }
 
-        return embed.build();
+        cmd.replyEmbeds(embed.build()).queue();
     }
 
-    @Command(name = {"help"}, desc = "Show usage for given command")
-    public static MessageEmbed handleHelp(@NotNull Message msg, String cmd) {
-        EmbedBuilder embed = new EmbedBuilder()
-                .setColor(Constants.Colors.PRIMARY)
-                .setTitle("Bot Help: !" + cmd);
-
-        List<CommandMethod> commands = Commands.commands.get(cmd);
-        if (commands == null) {
-            return Utils.error(msg, "Unknown command", "!" + cmd + " is not a command");
-        }
-        commands.sort((a, b) -> b.command().priority() - a.command().priority());
-        for (CommandMethod method : commands) {
-            embed.addField(formatUsage(cmd, method), method.command().desc() + (method.command().name().length == 1 ?
-                    "" : "\n" + "**Aliases:** " + String.join(", ", method.command().name())) + "\n**Permissions:** " + method.command().perms(), false);
-        }
-
-        return embed.build();
-    }
-
-    @Command(name = {"info"}, desc = "Credit where credit is due")
-    public static MessageEmbed handleInfo(@NotNull Message msg) {
+    @Command(name = "info", desc = "Credit where credit is due")
+    public static void handleInfo(@NotNull SlashCommandEvent cmd) {
         final EmbedBuilder bot_information = new EmbedBuilder()
                 .setTitle("Bot Information")
                 .setColor(Constants.Colors.PRIMARY)
                 .setDescription("Authors: **Lazerpent**, **person2597**, **pasghetti**")
                 .appendDescription("\n\nhttps://github.com/Lazerpent/GeneralsIoDiscordBot")
                 .setFooter("Written using JDA (Java Discord API)")
-                .setThumbnail(msg.getJDA().getSelfUser().getEffectiveAvatarUrl());
-        if (Constants.GUILD_INFO.get(msg.getGuild().getIdLong()).development) {
+                .setThumbnail(cmd.getJDA().getSelfUser().getEffectiveAvatarUrl());
+        if (Constants.GUILD_INFO.get(Objects.requireNonNull(cmd.getGuild()).getIdLong()).development) {
             bot_information.addField("Development Mode", "Currently running in development mode by " + System.getenv(
                     "DEVELOPMENT_MODE_DEVELOPER"), false);
         }
 
-        return bot_information.build();
+        cmd.replyEmbeds(bot_information.build()).queue();
+    }
+
+    private List<OptionData> collectOptionData(Method method) {
+        List<OptionData> optionBuffer = new ArrayList<>();
+        for (Parameter param : method.getParameters()) {
+            Class<?> type = param.getType();
+            CommandParameter optionProperties = param.getAnnotation(CommandParameter.class);
+            if (optionProperties == null) {
+                continue;
+            }
+            OptionType optionType;
+            String[] choices = new String[0];
+            if (type == int.class || type == Integer.class) {
+                optionType = OptionType.INTEGER;
+            } else if (type == double.class || type == Double.class) {
+                optionType = OptionType.NUMBER;
+            } else if (type == boolean.class || type == Boolean.class) {
+                optionType = OptionType.BOOLEAN;
+            } else if (optionProperties.choices().length > 0) {
+                optionType = OptionType.STRING;
+                choices = optionProperties.choices();
+            } else if (type == String.class) {
+                optionType = OptionType.STRING;
+            } else if (type == Member.class) {
+                // note: assumes that bot will never handle commands in DMs (all mentioned users are members)
+                optionType = OptionType.USER;
+            } else if (type == MessageChannel.class) {
+                optionType = OptionType.CHANNEL;
+            } else if (type == Role.class) {
+                optionType = OptionType.ROLE;
+            } else if (type == IMentionable.class) {
+                optionType = OptionType.MENTIONABLE;
+            } else if (type.isEnum()) {
+                optionType = OptionType.STRING;
+                choices = Arrays.stream(type.getEnumConstants()).map(Object::toString).toArray(String[]::new);
+            } else {
+                throw new IllegalStateException(String.format(
+                        "Parameter of type %s in %s is not valid option for slash command.",
+                        type.getName(),
+                        method.getName())
+                );
+            }
+            OptionData od = new OptionData(optionType, optionProperties.name(), optionProperties.desc(),
+                    !optionProperties.optional());
+            for (String choice : choices) {
+                od.addChoice(choice, choice);
+            }
+            optionBuffer.add(od);
+        }
+        return optionBuffer;
     }
 
     @Override
-    public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
+    public void onReady(@NotNull ReadyEvent event) {
+        System.out.println(event.getJDA().getGuilds());
+        List<CommandData> slashCommandBuffer = new ArrayList<>();
+        Map<String, Collection<? extends CommandPrivilege>> privileges = new HashMap<>();
+        for (Map.Entry<String, Map<String, Map<String, Method>>> entry : slashCommands.entrySet()) {
+            String name1 = entry.getKey();
+            CommandData cd = null;
+            if (name1.length() != 0) {
+                cd = new CommandData(name1, "Name of group of commands");
+            }
+            Method method = null;
+            for (Map.Entry<String, Map<String, Method>> subgroupEntry : entry.getValue().entrySet()) {
+                String name2 = subgroupEntry.getKey();
+                SubcommandGroupData sgd = null;
+                if (name2.length() != 0) {
+                    if (cd == null) {
+                        cd = new CommandData(name2, "Name of group of commands");
+                    } else {
+                        sgd = new SubcommandGroupData(name2, "Name of subgroup of commands");
+                        cd.addSubcommandGroups(sgd);
+                    }
+                }
+                for (Map.Entry<String, Method> subcommandEntry : subgroupEntry.getValue().entrySet()) {
+                    String name3 = subcommandEntry.getKey();
+                    method = subcommandEntry.getValue();
+                    if (cd == null) {
+                        cd = new CommandData(name3, method.getAnnotation(Command.class).desc());
+                        cd.addOptions(collectOptionData(method));
+                    } else {
+                        SubcommandData sd = new SubcommandData(name3, method.getAnnotation(Command.class).desc());
+                        sd.addOptions(collectOptionData(method));
+                        if (sgd != null) {
+                            sgd.addSubcommands(sd);
+                        } else {
+                            cd.addSubcommands(sd);
+                        }
+                    }
+                    if (name2.length() == 0) {
+                        if (method.getAnnotation(Command.class).perms() == Constants.Perms.MOD) {
+                            cd.setDefaultEnabled(false);
+                            privileges.putIfAbsent(name3,
+                                    Constants.Perms.getMod(event.getJDA().getGuilds().get(0).getIdLong()));
+                        }
+                        slashCommandBuffer.add(cd);
+                        cd = null;
+                    }
+                }
+                if (name1.length() == 0 && cd != null) {
+                    if (Objects.requireNonNull(method).getAnnotation(Command.class).perms() == Constants.Perms.MOD) {
+                        cd.setDefaultEnabled(false);
+                        privileges.putIfAbsent(name2,
+                                Constants.Perms.getMod(event.getJDA().getGuilds().get(0).getIdLong()));
+                    }
+                    slashCommandBuffer.add(cd);
+                    cd = null;
+                }
+            }
+            if (cd != null) {
+                if (Objects.requireNonNull(method).getAnnotation(Command.class).perms() == Constants.Perms.MOD) {
+                    cd.setDefaultEnabled(false);
+                    privileges.putIfAbsent(name1,
+                            Constants.Perms.getMod(event.getJDA().getGuilds().get(0).getIdLong()));
+                }
+                slashCommandBuffer.add(cd);
+            }
+        }
+        // NOTE: UPDATING ONE COMMAND WILL NOT UPDATE THE LIST - THIS MUST BE TOGGLED TO BE TRUE
+        if (event.getJDA().retrieveCommands().complete().size() != slashCommandBuffer.size() ||
+            System.getenv("UPDATE_COMMANDS") != null) {
+            event.getJDA().updateCommands().queue();
+
+            // This assumes that guild 0 is one of the guilds in Constants.GUILD_DATA
+            final Guild guild = event.getJDA().getGuilds().get(0);
+            guild.updateCommands().addCommands(slashCommandBuffer).queue();
+
+            Map<String, Collection<? extends CommandPrivilege>> map = privileges;
+            privileges = new HashMap<>();
+            var complete = guild.retrieveCommands().complete();
+            for (var command : complete) {
+                if (map.containsKey(command.getName())) {
+                    privileges.put(command.getId(), map.get(command.getName()));
+                }
+            }
+
+            guild.updateCommandPrivileges(privileges).queue();
+        }
+        Hill.init();
+    }
+
+    @Override
+    public void onSlashCommand(@NotNull SlashCommandEvent event) {
+        List<String> names = new ArrayList<>();
+        names.add(event.getName());
+        if (event.getSubcommandGroup() != null) names.add(0, event.getSubcommandGroup());
+        if (event.getSubcommandName() != null) names.add(0, event.getSubcommandName());
+        while (names.size() < 3) names.add("");
+        Method command = slashCommands.get(names.get(2)).get(names.get(1)).get(names.get(0));
         try {
-            final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(event.getGuild().getIdLong());
-
-            // Cancel if user is a bot or in an ignored channel
-            if (event.getAuthor().isBot() || GUILD_INFO.ignoreChannels.contains(event.getChannel().getIdLong())) {
-                return;
-            }
-            Message msg = event.getMessage();
-            // ignore DMs
-            if (!msg.isFromGuild()) {
-                return;
-            }
-
-            String content = msg.getContentRaw();
-            if (!content.startsWith(PREFIX)) {
-                return;
-            }
-
-            // split content into words; remove prefix
-            content = content.replaceFirst(PREFIX, "");
-            String[] command = content.split(" ");
-            List<CommandMethod> commands = Commands.commands.get(command[0].toLowerCase());
-            if (commands == null) {
-                return;
-            }
-            commands.sort((a, b) -> b.command().priority() - a.command().priority());
-            Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(
-                    String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
-            String[] args = match.results()
-                    .map(MatchResult::group)
-                    .toArray(String[]::new);
-
-
-            // check each command - if the match is found then run it and ignore the rest
-            Map<CommandMethod, String> errors = new HashMap<>();
-            for (CommandMethod cmd : commands) {
-                // TODO: this assumes that commands with perm NONE do not have any overloads with higher perms
-                if (cmd.command().perms() != Constants.Perms.NONE) {
-                    if (Database.getGeneralsName(msg.getAuthor().getIdLong()) == null) {
-                        msg.getChannel().sendMessageEmbeds(
+            if (command != null) {
+                if (command.getAnnotation(Command.class).perms() != Constants.Perms.NONE) {
+                    if (Database.getGeneralsName(Objects.requireNonNull(event.getMember()).getIdLong()) == null) {
+                        event.reply(new MessageBuilder().setEmbeds(
                                 new EmbedBuilder()
                                         .setTitle("Unknown generals.io Username")
                                         .setDescription("""
                                                 You must register your generals.io username.\s
                                                 Use ``!addname username`` to register.
                                                 Example: ```!addname MyName321```""")
-                                        .setColor(Constants.Colors.ERROR).build()).queue();
+                                        .setColor(Constants.Colors.ERROR).build()).build()).queue();
                         return; // If one is perms.none they all are so return is fine
                     }
                 }
 
                 // check for valid perms
-                if (cmd.command().perms() > Constants.Perms.get(Objects.requireNonNull(msg.getMember()))) {
-                    errors.put(cmd, "You don't have permission to use **!" + command[0] + "**\n");
-                    continue;
-                }
-
-                // check if arguments match
-                Pair<Object[], String> result = cmd.args(msg, args);
-                if (result.getKey() == null) {
-                    errors.put(cmd, result.getValue());
-                    continue;
-                }
-
-                // run command
-                try {
-                    Object ret = cmd.method().invoke(null, result.getKey());
-                    if (ret instanceof Message) {
-                        msg.getChannel().sendMessage((Message) ret).queue();
-                    } else if (ret instanceof MessageEmbed) {
-                        msg.getChannel().sendMessageEmbeds((MessageEmbed) ret).queue();
-                    } else if (ret != null) {
-                        throw new IllegalStateException("command " + command[0] + " does not have a valid return " +
-                                                        "value:  " + ret.getClass().toString());
-                    }
+                if (command.getAnnotation(Command.class).perms() > Constants.Perms.get(Objects.requireNonNull(event.getMember()))) {
+                    event.reply(new MessageBuilder().setEmbeds(
+                            new EmbedBuilder()
+                                    .setTitle("Invalid Command")
+                                    .setDescription("You don't have permission to use **/" + event.getName() + "**\n")
+                                    .setColor(Constants.Colors.ERROR).build()).build()).queue();
                     return;
-                } catch (InvocationTargetException e) {
-                    throw e.getTargetException();
+                }
+                List<Object> args = new ArrayList<>();
+                args.add(event);
+                for (OptionMapping opt : event.getOptions()) {
+                    args.add(switch (opt.getType()) {
+                        case UNKNOWN -> throw new Exception("Unknown parameter type. Parameter name: " + opt.getName());
+                        case SUB_COMMAND, SUB_COMMAND_GROUP, STRING -> opt.getAsString();
+                        case INTEGER -> Long.valueOf(opt.getAsLong()).intValue();
+                        case BOOLEAN -> opt.getAsBoolean();
+                        case USER -> opt.getAsMember();
+                        case CHANNEL -> opt.getAsMessageChannel();
+                        case ROLE -> opt.getAsRole();
+                        case MENTIONABLE -> opt.getAsMentionable();
+                        case NUMBER -> opt.getAsDouble();
+                    });
+                }
+                while (args.size() < command.getParameters().length) {
+                    args.add(null); // optional parameters
+                }
+                Object ret = command.invoke(null, args.toArray());
+                if (ret != null) {
+                    throw new IllegalStateException("Command " + event.getName() + " must have void return type.");
                 }
             }
-
-            if (!errors.isEmpty()) {
-                msg.getChannel().sendMessageEmbeds(Utils.error(msg, "No Matches",
-                        errors.entrySet().stream().map(entry -> formatUsage(command[0], entry.getKey()) + "\n" + entry.getValue()).collect(Collectors.joining("\n\n"))
-                )).queue();
-            }
-        } catch (Throwable e) {
-            logIfPresent(e, event.getGuild(), event.getMessage().getAuthor().getAsMention() + ", " +
-                                              event.getMessage().getContentDisplay());
+        } catch (Exception e) {
+            logIfPresent(e, Objects.requireNonNull(event.getGuild()),
+                    Objects.requireNonNull(event.getMember()).getAsMention() + ", " + event.getCommandString());
         }
-    }
-
-    @Override
-    public void onReady(@NotNull ReadyEvent event) {
-        System.out.println(event.getJDA().getGuilds());
-        Hill.init();
     }
 
     @Override
@@ -411,173 +439,31 @@ public class Commands extends ListenerAdapter {
     @Target(ElementType.METHOD)
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Command {
-        String[] name();
+        String name();
 
-        String cat() default ""; // category
+        String subgroup() default "";
+
+        String subname() default "";
 
         String desc();
 
         int perms() default Constants.Perms.NONE;
-
-        int priority() default 0;
     }
 
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Category {
-        String cat();
-
         String name();
     }
 
     @Target(ElementType.PARAMETER)
     @Retention(RetentionPolicy.RUNTIME)
-    public @interface Selection {
-        String[] value();
-    }
+    public @interface CommandParameter {
+        String name();
 
-    @Target(ElementType.PARAMETER)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Optional {
-    }
+        String desc();
 
-    private static record CommandMethod(Method method) {
-        private static final BiFunction<String, String, IllegalStateException> exception =
-                (error, name) -> new IllegalStateException("Invalid Command Handler Method `" + name + "`: " + error);
+        boolean optional() default false;
 
-        public CommandMethod {
-            java.util.Objects.requireNonNull(method.getAnnotation(Command.class));
-            if (!method.getName().startsWith("handle"))
-                throw exception.apply("illegal name: name must start with `handle`", method.getName());
-            if (!Modifier.isStatic(method.getModifiers())) throw exception.apply("not static", method.getName());
-
-            // TODO: checks
-        }
-
-        public Command command() {
-            return this.method().getAnnotation(Command.class);
-        }
-
-        public Parameter[] params() {
-            return this.method().getParameters();
-        }
-
-        public Pair<Object[], String> args(Message msg, String[] args) {
-            Parameter[] params = params();
-            if (args.length > params.length && params[params.length-1].getType() != String[].class) {
-                return new ImmutablePair<>(null,
-                        "Expected maximum " + params.length + " parameters, found " + args.length + " parameters");
-            }
-
-            Object[] out = new Object[params.length];
-            int j = 0;
-            for (int i = 0; i < params.length; i++) {
-                Parameter param = params[i];
-
-                Class<?> type = param.getType();
-                if (type == Message.class) {
-                    out[i] = msg;
-                    continue;
-                }
-
-                if (j >= args.length) { // argument not present
-                    out[i] = null;
-
-                    if (param.getAnnotation(Optional.class) == null) {
-                        return new ImmutablePair<>(null,
-                                "Expected minimum " + (j + 1) + " parameters, found " + args.length + " parameters");
-                    }
-                    j++;
-                    continue;
-                }
-
-                try {
-                    if (type == byte.class || type == Byte.class) {
-                        out[i] = Byte.parseByte(args[j]);
-                    } else if (type == short.class || type == Short.class) {
-                        out[i] = Short.parseShort(args[j]);
-                    } else if (type == int.class || type == Integer.class) {
-                        out[i] = Integer.parseInt(args[j]);
-                    } else if (type == long.class || type == Long.class) {
-                        out[i] = Long.parseLong(args[j]);
-                    } else if (type == String.class) {
-                        Selection sel = param.getAnnotation(Selection.class);
-                        if (sel != null) {
-                            for (String option : sel.value()) {
-                                if (option.toLowerCase().equals(args[j].toLowerCase())) {
-                                    out[i] = option;
-                                }
-                            }
-
-                            if (out[i] == null) {
-                                return new ImmutablePair<>(null, "Parameter " + param.getName() + " must be " +
-                                    String.join(" | ", sel.value()) + ", is " + args[j]);
-                            }    
-                        } else {
-                            out[i] = args[j];
-                        }
-                    } else if (type == Member.class) {
-                        if (args[j].startsWith("@!")) {
-                            long userID;
-                            try {
-                                userID = Long.parseLong(args[j].substring(2));
-                            } catch (NumberFormatException e) {
-                                return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention: " +
-                                                                 "does not contain valid user ID");
-                            }
-
-                            out[i] = msg.getGuild().getMemberById(userID);
-                            if (out[i] == null) {
-                                return new ImmutablePair<>(null, "Argument " + param.getName() + " mentions a member " +
-                                                                 "that" +
-                                                                 " no longer exists");
-                            }
-                        } else {
-                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is not a mention");
-                        }
-                    } else if (type == String[].class) {
-                        if (i != params.length - 1) {
-                            return new ImmutablePair<>(null, "Argument " + param.getName() + " is String[] and " +
-                                                             "therefore " +
-                                                             "must be the last argument");
-                        }
-
-                        out[i] = Arrays.copyOfRange(args, j, args.length);
-                    } else if (type.isEnum()) {
-                        try {
-                            Object ret = type.getMethod("values").invoke(null);
-                            Object[] items = new Object[Array.getLength(ret)];
-                            String[] names = new String[items.length];
-                            for (int k = 0; k < items.length; k++) {
-                                items[k] = Array.get(ret, k);
-                                String name = (String) type.getMethod("name").invoke(items[k]);
-                                names[k] = name.toLowerCase();
-                            }
-
-                            for (int k = 0; k < items.length; k++) {
-                                if (names[k].equals(args[j].toLowerCase())) {
-                                    out[i] = items[k];
-                                    break;
-                                }
-                            }
-
-                            if (out[i] == null)
-                                return new ImmutablePair<>(null, "Argument " + param.getName() + " must be " +
-                                                                 String.join(" | ", names) + ", is " + args[j]);
-                        } catch (Throwable t) {
-                            throw new IllegalStateException(t.getMessage());
-                        }
-                    } else {
-                        return new ImmutablePair<>(null, "Unknown type");
-                    }
-                } catch (NumberFormatException e) {
-                    return new ImmutablePair<>(null,
-                            "Argument " + param.getName() + " must be a number, is " + args[j]);
-                }
-
-                j++;
-            }
-
-            return new ImmutablePair<>(out, "");
-        }
+        String[] choices() default {};
     }
 }

@@ -5,3 +5,6 @@
 .project
 /.settings/
 database.db
+# IntelliJ
+/.idea/
+/**/.gitignore

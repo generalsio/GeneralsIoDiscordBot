@@ -1,10 +1,15 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
+import com.lazerpent.discord.generalsio.bot.Commands.Category;
+import com.lazerpent.discord.generalsio.bot.Commands.Command;
+import com.lazerpent.discord.generalsio.bot.Commands.CommandParameter;
+import com.lazerpent.discord.generalsio.bot.Constants;
+import com.lazerpent.discord.generalsio.bot.Database;
+import com.lazerpent.discord.generalsio.bot.Utils;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
-import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
+import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
 import org.jetbrains.annotations.NotNull;
@@ -15,10 +20,6 @@ import java.util.*;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
-import com.lazerpent.discord.generalsio.bot.*;
-import com.lazerpent.discord.generalsio.bot.Commands.*;
 
 /**
  * Punishment handler
@@ -31,21 +32,25 @@ import com.lazerpent.discord.generalsio.bot.Commands.*;
  * A moderator can then pull up a list of the command to run to punish/disable the users. After running a command, the
  * moderator can select to clear the list and start over
  */
-@Category(cat = "mod", name = "Moderation")
+@Category(name = "Moderation")
 public class Punishments {
     /**
      * Allows a moderator to add a list of usernames to the punishment list
      * <p>
      * Run as: punish username1 "username 2" username3 ...
      *
-     * @param msg  Message object from moderator (permission determined prior to call)
-     * @param args List of players delimited by spaces (or using quotes for multiple words)
+     * @param cmd   SlashCommandEvent object from moderator (permission determined prior to call)
+     * @param names List of players delimited by spaces (or using quotes for multiple words)
      */
-    @Command(name = {"punish"}, desc = "Add user to the punishment list",
+    @Command(name = "punish", desc = "Add user to the punishment list",
             perms = Constants.Perms.MOD)
-    public static MessageEmbed handlePunish(@NotNull Message msg, @NotNull String[] names) {
-        Arrays.stream(names).forEach(Database::addPunishment);
-        return Utils.success(msg, "Added players to punishment list.");
+    public static void handlePunish(@NotNull SlashCommandEvent cmd,
+                                    @CommandParameter(name = "names",
+                                            desc = "List of players delimited by spaces" +
+                                                   " (or using angle brackets for multiple words)") String names) {
+        Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(names);
+        Arrays.stream(match.results().map(MatchResult::group).toArray(String[]::new)).forEach(Database::addPunishment);
+        Utils.replySuccess(cmd, "Added players to punishment list.");
     }
 
     /**
@@ -53,14 +58,18 @@ public class Punishments {
      * <p>
      * Run as: disable username1 "username 2" username3 ...
      *
-     * @param msg  Message object from moderator (permission determined prior to call)
-     * @param args List of players delimited by spaces (or using quotes for multiple words)
+     * @param cmd   Message object from moderator (permission determined prior to call)
+     * @param names List of players delimited by spaces (or using quotes for multiple words)
      */
-    @Command(name = {"disable"}, desc = "Add user to the disable list",
+    @Command(name = "disable", desc = "Add user to the disable list",
             perms = Constants.Perms.MOD)
-    public static MessageEmbed handleDisable(@NotNull Message msg, @NotNull String[] names) {
-        Arrays.stream(names).forEach(Database::addDisable);
-        return Utils.success(msg, "Added players to disable list.");
+    public static void handleDisable(@NotNull SlashCommandEvent cmd,
+                                     @CommandParameter(name = "names",
+                                             desc = "List of players delimited by spaces " +
+                                                    "(or using angle brackets for multiple words)") String names) {
+        Matcher match = Pattern.compile("(?<=<)[^<>]+(?=>)|[^<>\\s]+").matcher(names);
+        Arrays.stream(match.results().map(MatchResult::group).toArray(String[]::new)).forEach(Database::addDisable);
+        Utils.replySuccess(cmd, "Added players to disable list.");
     }
 
 
@@ -69,10 +78,11 @@ public class Punishments {
      * <p>
      * Run as: cmd
      *
-     * @param msg Message object from moderator (permission determined prior to call)
+     * @param cmd SlashCommandEvent object from moderator (permission determined prior to call)
      */
-    @Command(name = {"getpunish", "getpunishcommand", "getpunishcommands"}, perms = Constants.Perms.MOD, desc = "Gets a list of commands to run to punish players")
-    public static Message handleGetCommands(@NotNull Message msg) {
+    @Command(name = "getpunishcommand", perms = Constants.Perms.MOD, desc = "Gets a list of commands to run to punish" +
+                                                                            " players")
+    public static void handleGetCommands(@NotNull SlashCommandEvent cmd) {
         List<String> punish = new LinkedList<>(), disable = new LinkedList<>();
         Database.getPunishments(punish, disable);
 
@@ -98,7 +108,7 @@ public class Punishments {
         }
         builder.setEmbeds(embedBuilder.build());
 
-        return builder.build();
+        cmd.reply(builder.build()).queue();
     }
 
     /**

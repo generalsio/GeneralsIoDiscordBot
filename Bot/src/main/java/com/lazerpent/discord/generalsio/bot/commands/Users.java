@@ -2,7 +2,7 @@ package com.lazerpent.discord.generalsio.bot.commands;
 
 import com.lazerpent.discord.generalsio.bot.Commands.Category;
 import com.lazerpent.discord.generalsio.bot.Commands.Command;
-import com.lazerpent.discord.generalsio.bot.Commands.Optional;
+import com.lazerpent.discord.generalsio.bot.Commands.CommandParameter;
 import com.lazerpent.discord.generalsio.bot.Constants;
 import com.lazerpent.discord.generalsio.bot.Database;
 import com.lazerpent.discord.generalsio.bot.Utils;
@@ -10,13 +10,14 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
 
-@Category(cat = "user", name = "Users")
+@Category(name = "Users")
 public class Users {
     private static boolean nickWupey = false;
 
@@ -24,101 +25,118 @@ public class Users {
         return nickWupey;
     }
 
-    @Command(name = {"profile", "user"}, perms = Constants.Perms.USER, desc = "Show discord user for a generals " +
-                                                                              "username", priority = -1)
-    public static Object handleUserGenerals(@NotNull Message msg, String username) {
+    @Command(name = "user", perms = Constants.Perms.USER, desc = "Show Discord user for a generals username")
+    public static void handleUserGenerals(@NotNull SlashCommandEvent cmd,
+                                          @CommandParameter(name = "username",
+                                                  desc = "The generals username") String username) {
         Database.User user = Database.User.fromUsername(username);
         if (user == null) {
-            return Utils.error(msg, username + " is not registered to any discord" +
-                                    " user");
+            Utils.replyError(cmd, username + " is not registered to any Discord user.");
+            return;
         }
 
-        return embedUser(user);
+        cmd.reply(embedUser(user)).queue();
     }
 
-    @Command(name = {"profile", "user"}, perms = Constants.Perms.USER, desc = "Show generals username for the given " +
-                                                                              "discord " +
-                                                                              "user, or the message author")
-    public static Object handleUserDiscord(@NotNull Message msg, @Optional Member mention) {
+    @Command(name = "profile", perms = Constants.Perms.USER, desc = "Show generals username for the given " +
+                                                                    "Discord " +
+                                                                    "user, or the message author")
+    public static void handleUserDiscord(@NotNull SlashCommandEvent cmd,
+                                         @CommandParameter(name = "user",
+                                                 desc = "The user mentioned on Discord",
+                                                 optional = true) Member mention) {
         Database.User user;
-        user = Database.User.fromId(Objects.requireNonNullElseGet(mention, msg::getAuthor).getIdLong());
+        user = Database.User.fromId(Objects.requireNonNullElseGet(mention, cmd::getMember).getIdLong());
 
         if (user == null) {
-            return Utils.error(msg, "<@" + mention.getIdLong() + "> has not registered their generals.io user");
+            Utils.replyError(cmd, "<@" + mention.getIdLong() + "> has not registered their generals.io user");
+            return;
         }
 
-        return embedUser(user);
+        cmd.reply(embedUser(user)).queue();
     }
 
     private static Message embedUser(Database.User user) {
-        return
-                new MessageBuilder()
-                        .setEmbeds(new EmbedBuilder().setTitle("Profile", "https://generals" +
-                                                                          ".io/profiles/" + Utils.encodeURI(user.username())).setColor(Constants.Colors.PRIMARY)
-                                .appendDescription("**Username:** " + user.username())
-                                .appendDescription("\n**Discord:** <@" + user.discordId() + ">")
-                                .build())
-                        .setActionRows(ActionRow.of(Button.link("https://generals.io/profiles/" + Utils.encodeURI(user.username()), "Visit")))
-                        .build();
+        return new MessageBuilder()
+                .setEmbeds(new EmbedBuilder().setTitle("Profile", "https://generals.io/profiles/" +
+                                                                  Utils.encodeURI(user.username())).setColor(Constants.Colors.PRIMARY)
+                        .appendDescription("**Username:** " + user.username())
+                        .appendDescription("\n**Discord:** <@" + user.discordId() + ">")
+                        .build())
+                .setActionRows(ActionRow.of(Button.link("https://generals.io/profiles/" +
+                                                        Utils.encodeURI(user.username()), "Visit")))
+                .build();
     }
 
-    @Command(name = {"addname"}, cat = "user", desc = "Register generals.io username")
-    public static Object handleAddName(@NotNull Message msg, String username) {
-        final Constants.GuildInfo GUILD_INFO = Constants.GUILD_INFO.get(msg.getGuild().getIdLong());
+    @Command(name = "addname", desc = "Register generals.io username")
+    public static void handleAddName(@NotNull SlashCommandEvent cmd,
+                                     @CommandParameter(name = "username",
+                                             desc = "The generals.io username") String username) {
+        final Constants.GuildInfo GUILD_INFO =
+                Constants.GUILD_INFO.get(Objects.requireNonNull(cmd.getGuild()).getIdLong());
 
-        if (Database.User.fromId(msg.getAuthor().getIdLong()) != null) {
-            return Utils.error(msg, "You're already registered as **" + username +
-                                    "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
-                                    "to change your username.");
+        Database.User curEntry = Database.User.fromId(Objects.requireNonNull(cmd.getMember()).getIdLong());
+        if (curEntry != null) {
+            Utils.replyError(cmd, "You're already registered as **" + curEntry.username() +
+                                  "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
+                                  "to change your username.");
+            return;
         }
 
         Database.User existingUser = Database.User.fromUsername(username);
         if (existingUser != null) {
-            if (msg.getGuild().retrieveBanById(existingUser.discordId()).complete() != null) {
-                return Utils.error(msg, "**" + username + "** is banned");
+            if (cmd.getGuild().retrieveBanById(existingUser.discordId()).complete() != null) {
+                Utils.replyError(cmd, "**" + username + "** is banned");
+                return;
             }
 
-            Member m = msg.getGuild().getMemberById(existingUser.discordId());
+            Member m = cmd.getGuild().getMemberById(existingUser.discordId());
             if (m != null) {
-                return Utils.error(msg, "**" + username + "** is already registered " +
-                                        "to " + m.getAsMention());
+                Utils.replyError(cmd, "**" + username + "** is already registered to " + m.getAsMention());
+                return;
             }
         }
 
-        Database.addDiscordGenerals(msg.getAuthor().getIdLong(), username);
-        return new EmbedBuilder().setTitle("Username Added").setColor(Constants.Colors.SUCCESS)
-                .setDescription(Objects.requireNonNull(msg.getMember()).getAsMention() + " is now generals.io user " +
-                                "**" + username + "**").build();
+        Database.addDiscordGenerals(cmd.getMember().getIdLong(), username);
+        cmd.replyEmbeds(new EmbedBuilder().setTitle("Username Added").setColor(Constants.Colors.SUCCESS)
+                .setDescription(Objects.requireNonNull(cmd.getMember()).getAsMention() + " is now generals.io user " +
+                                "**" + username + "**").build()).queue();
     }
 
-    @Command(name = {"nickwupey"}, cat = "user", desc = "Bully Wuped", perms = Constants.Perms.MOD)
-    public static Object handleNickWupey(@NotNull Message msg) {
-        if (msg.getAuthor().getIdLong() == 175430325755838464L) {
-            return Utils.error(msg, "You can't bully yourself!");
+    @Command(name = "nickwupey", desc = "Bully Wuped", perms = Constants.Perms.MOD)
+    public static void handleNickWupey(@NotNull SlashCommandEvent cmd) {
+        if (Objects.requireNonNull(cmd.getMember()).getIdLong() == 175430325755838464L) {
+            Utils.replyError(cmd, "You can't bully yourself!");
+            return;
         }
 
         nickWupey = !nickWupey;
         if (nickWupey) {
-            msg.getGuild().modifyNickname(Objects.requireNonNull(msg.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
+            Objects.requireNonNull(cmd.getGuild()).modifyNickname(Objects.requireNonNull(cmd.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
         }
 
-        return new EmbedBuilder().setTitle("Auto-Nick").setDescription("...is " + nickWupey).build();
+        cmd.replyEmbeds(new EmbedBuilder().setTitle("Auto-Nick").setDescription("Switched to " + (nickWupey ?
+                "enabled." : "disabled.")).build()).queue();
     }
 
-    @Command(name = {"setname"}, cat = "user", desc = "Change generals.io username of user", perms =
+    @Command(name = "setname", desc = "Change generals.io username of user", perms =
             Constants.Perms.MOD)
-    public static Message handleSetName(@NotNull Message msg, Member member, String username) {
+    public static void handleSetName(@NotNull SlashCommandEvent cmd,
+                                     @CommandParameter(name = "user",
+                                             desc = "The mention for the user") Member member,
+                                     @CommandParameter(name = "username",
+                                             desc = "The generals.io username") String username) {
         if (Database.noMatch(member.getIdLong(), username)) {
             Database.addDiscordGenerals(member.getIdLong(), username);
         } else {
-            Database.updateDiscordGenerals(member.getIdLong(), member.getIdLong(), username);
+            Database.updateDiscordGenerals(Database.getDiscordId(username), member.getIdLong(), username);
         }
-        return new MessageBuilder()
+        cmd.reply(new MessageBuilder()
                 .setContent(member.getAsMention())
                 .setEmbeds(
                         new EmbedBuilder().setTitle("Username Updated").setColor(Constants.Colors.SUCCESS)
                                 .setDescription(member.getAsMention() + " is now generals.io user **" + username +
-                                                "**").build()).build();
+                                                "**").build()).build()).queue();
     }
 
 }
