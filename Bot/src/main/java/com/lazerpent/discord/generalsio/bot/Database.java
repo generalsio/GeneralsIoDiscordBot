@@ -1,5 +1,6 @@
 package com.lazerpent.discord.generalsio.bot;
 
+import com.lazerpent.discord.generalsio.bot.commands.Punishments;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,12 +51,12 @@ public class Database {
         try {
             connection.createStatement().execute(
                     "CREATE TABLE IF NOT EXISTS challenges " +
-                    "(timestamp INT NOT NULL PRIMARY KEY, " +
-                    "type INT NOT NULL, " +
-                    "scoreInc INT NOT NULL, " +
-                    "scoreOpp INT NOT NULL, " +
-                    "opp TEXT NOT NULL, " +
-                    "replays TEXT NOT NULL)");
+                            "(timestamp INT NOT NULL PRIMARY KEY, " +
+                            "type INT NOT NULL, " +
+                            "scoreInc INT NOT NULL, " +
+                            "scoreOpp INT NOT NULL, " +
+                            "opp TEXT NOT NULL, " +
+                            "replays TEXT NOT NULL)");
         } catch (SQLException e) {
             System.out.println("Error creating table challenges.");
             e.printStackTrace();
@@ -64,8 +65,8 @@ public class Database {
         try {
             connection.createStatement().execute(
                     "CREATE TABLE IF NOT EXISTS team_names " +
-                    "(team TEXT NOT NULL PRIMARY KEY, " +
-                    "teamName TEXT NOT NULL)");
+                            "(team TEXT NOT NULL PRIMARY KEY, " +
+                            "teamName TEXT NOT NULL)");
         } catch (SQLException e) {
             System.out.println("Error creating table team_names.");
             e.printStackTrace();
@@ -73,12 +74,23 @@ public class Database {
 
         try {
             connection.createStatement().execute(
+                    "CREATE TABLE IF NOT EXISTS reports " +
+                            "(reportMessageID INT NOT NULL PRIMARY KEY, " +
+                            "botMessageID INT NOT NULL, " +
+                            "reportState INT NOT NULL)");
+        } catch (SQLException e) {
+            System.out.println("Error creating table reports.");
+            e.printStackTrace();
+        }
+
+        try {
+            connection.createStatement().execute(
                     "CREATE TABLE IF NOT EXISTS punishments (username text not null," +
-                    " disable integer default 0 not null)");
+                            " disable integer default 0 not null)");
 
             // Also check the unique key row
             connection.createStatement().execute("CREATE UNIQUE INDEX IF NOT EXISTS punishments_username_uindex " +
-                                                 "on punishments (username)");
+                    "on punishments (username)");
         } catch (SQLException e) {
             System.out.println("Error creating table punishments.");
             e.printStackTrace();
@@ -170,7 +182,7 @@ public class Database {
     public static void addPunishment(String username) {
         try {
             PreparedStatement stm = connection.prepareStatement("INSERT OR IGNORE INTO " +
-                                                                "punishments(username) VALUES(?)");
+                    "punishments(username) VALUES(?)");
             stm.setString(1, username);
             stm.execute();
         } catch (SQLException e) {
@@ -187,9 +199,93 @@ public class Database {
     public static void addDisable(String username) {
         try {
             PreparedStatement stm = connection.prepareStatement("INSERT OR REPLACE INTO " +
-                                                                "punishments(username, disable) VALUES(?, 1)");
+                    "punishments(username, disable) VALUES(?, 1)");
             stm.setString(1, username);
             stm.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Updates the bot message associated with a given report message. If the report message was not previously recorded
+     * in the database, this will add a new row for the report message.
+     *
+     * @param reportID     The ID of the report message.
+     * @param botMessageID The ID of the bot message.
+     */
+    public static void updateReport(long reportID, long botMessageID) {
+        try {
+            PreparedStatement stm = connection.prepareStatement("INSERT OR REPLACE INTO " +
+                    "reports(reportMessageID, botMessageID, reportState) VALUES(?, ?, ?)");
+            stm.setLong(1, reportID);
+            stm.setLong(2, botMessageID);
+            stm.setInt(3, Punishments.ReportState.PENDING.ordinal());
+            stm.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Checks if a report message has already been recorded in the database.
+     *
+     * @param reportID The ID of the report message.
+     * @return True if the report message has already been recorded.
+     */
+    public static boolean isReportRecorded(long reportID) {
+        String sql = "select 1 from reports where reportMessageID=?";
+        try {
+            PreparedStatement stm = connection.prepareStatement(sql);
+            stm.setLong(1, reportID);
+            ResultSet resultSet = stm.executeQuery();
+            resultSet.next();
+            return !resultSet.isClosed();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public static long getBotMessage(long reportID) {
+        String sql = "select * from reports where reportMessageID=?";
+        try {
+            PreparedStatement stm = connection.prepareStatement(sql);
+            stm.setLong(1, reportID);
+            ResultSet resultSet = stm.executeQuery();
+            resultSet.next();
+            if (!resultSet.isClosed()) {
+                return resultSet.getLong("botMessageID");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    public static Punishments.ReportState getReportState(long reportID) {
+        String sql = "select * from reports where reportMessageID=?";
+        try {
+            PreparedStatement stm = connection.prepareStatement(sql);
+            stm.setLong(1, reportID);
+            ResultSet resultSet = stm.executeQuery();
+            resultSet.next();
+            if (!resultSet.isClosed()) {
+                return Punishments.ReportState.values()[resultSet.getInt("reportState")];
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return Punishments.ReportState.INVALID;
+    }
+
+    public static void setReportState(long reportID, Punishments.ReportState reportState) {
+        String sql = "update reports set reportState = ? where reportMessageID = ?";
+        try {
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setInt(1, reportState.ordinal());
+            statement.setLong(2, reportID);
+            statement.execute();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -257,7 +353,7 @@ public class Database {
 
         public static void add(Challenge c) {
             String sql = "INSERT INTO challenges (timestamp, type, scoreInc, scoreOpp, opp, replays) VALUES (?, ?," +
-                         " ?, ?, ?, ?)";
+                    " ?, ?, ?, ?)";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 int i = 1;
@@ -333,7 +429,7 @@ public class Database {
 
         public static int nthTerm(Constants.Hill type, long timestamp) {
             String sql = "SELECT COUNT(timestamp) FROM challenges WHERE scoreInc < scoreOpp AND type = ? AND " +
-                         "timestamp <= ?";
+                    "timestamp <= ?";
             try {
                 PreparedStatement stm = connection.prepareStatement(sql);
                 stm.setInt(1, type.id);
@@ -360,8 +456,8 @@ public class Database {
 
         public static void setTeamName(long[] opp, String name) {
             String sql = "INSERT INTO team_names(team, teamName) "
-                         + "VALUES(?, ?) ON CONFLICT(team)"
-                         + "DO UPDATE SET teamName = excluded.teamName";
+                    + "VALUES(?, ?) ON CONFLICT(team)"
+                    + "DO UPDATE SET teamName = excluded.teamName";
             String team = Arrays.stream(opp).mapToObj(String::valueOf)
                     .collect(Collectors.joining(DEL));
             try {

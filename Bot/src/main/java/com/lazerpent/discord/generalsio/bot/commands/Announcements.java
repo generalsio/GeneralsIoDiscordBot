@@ -177,7 +177,7 @@ public class Announcements {
             new TournamentData("2v2 Tournament #3",
                     "October 24, 2020",
                     "Utter waste of my time. Spraget and Fakuku didn't even stand a chance in the finals. " +
-                    "Did we even lose a single game in the bracket? OMEGALUL",
+                            "Did we even lose a single game in the bracket? OMEGALUL",
                     null,
                     "syLph",
                     "MeltedToast",

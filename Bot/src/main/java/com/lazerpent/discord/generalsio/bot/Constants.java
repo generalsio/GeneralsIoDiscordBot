@@ -39,6 +39,8 @@ public class Constants {
                     .setModeratorRole(871581355031560289L)
                     .setDeveloperRole(871581355031560288L)
                     .setEventNotificationRole(871581354800861200L)
+                    .setReportCheatersChannel(871581355526459508L)
+                    .setReportRecordChannel(900771668971102258L)
                     .setDevelopment(true)
                     .build(),
 
@@ -65,6 +67,8 @@ public class Constants {
                     .setModeratorRole(309536399005188097L)
                     .setDeveloperRole(252879375089926145L)
                     .setErrorChannel(880559867818037248L)
+                    .setReportCheatersChannel(714986176859340831L)
+                    .setReportRecordChannel(900772522331619358L)
                     .setEventNotificationRole(896836627895320606L)
                     .build()
     );
@@ -153,6 +157,8 @@ public class Constants {
         public Map<Hill, Long> hillRoles;
         public boolean development;
         public long errorChannel = -1;
+        public long reportCheatersChannel = -1;
+        public long reportRecordChannel = -1;
         public long eventRole;
         private boolean built;
 
@@ -223,6 +229,18 @@ public class Constants {
         public GuildInfo setErrorChannel(long id) {
             if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.errorChannel = id;
+            return this;
+        }
+
+        public GuildInfo setReportCheatersChannel(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
+            this.reportCheatersChannel = id;
+            return this;
+        }
+
+        public GuildInfo setReportRecordChannel(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
+            this.reportRecordChannel = id;
             return this;
         }
 

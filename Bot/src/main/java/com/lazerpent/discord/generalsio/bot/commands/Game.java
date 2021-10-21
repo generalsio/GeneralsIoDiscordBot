@@ -146,7 +146,7 @@ public class Game {
                         .appendDescription(speed != 1 ? "\n**Speed:** " + speed : "")
                         .appendDescription(map != null ? "\n**Map:** " + map : "")
                         .setFooter(Objects.requireNonNull(cmd.getMember()).getUser().getAsTag() + " • "
-                                   + Database.getGeneralsName(cmd.getMember().getUser().getIdLong()),
+                                        + Database.getGeneralsName(cmd.getMember().getUser().getIdLong()),
                                 cmd.getMember().getUser().getAvatarUrl());
 
         List<Button> buttons = new ArrayList<>(List.of(

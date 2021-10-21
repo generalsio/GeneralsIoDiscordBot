@@ -92,7 +92,7 @@ public class Hill {
                             if (!replayFile.onSameTeam(Arrays.stream(cdata.opp)
                                     .mapToObj(Database::getGeneralsName)
                                     .toArray(String[]::new))
-                                || !replayFile.onSameTeam(Arrays.stream(incumbent)
+                                    || !replayFile.onSameTeam(Arrays.stream(incumbent)
                                     .mapToObj(Database::getGeneralsName)
                                     .toArray(String[]::new))) {
                                 continue;
@@ -144,9 +144,9 @@ public class Hill {
                 .setTitle(mode.toString() + " Results")
                 .setColor(mode.color)
                 .setDescription((c.scoreInc > c.scoreOpp ? "**" + c.scoreInc
-                                                           + "**-" + c.scoreOpp :
+                        + "**-" + c.scoreOpp :
                         c.scoreInc + "-**" + c.scoreOpp + "**")
-                                + " vs " + getOpponentName(oppMember, true))
+                        + " vs " + getOpponentName(oppMember, true))
                 .setTimestamp(Instant.ofEpochMilli(c.timestamp));
 
         if (c.replays.length != 0) {
@@ -292,7 +292,7 @@ public class Hill {
                 .setColor(mode.color)
                 .setTitle("Temporary " + mode.name() + " set")
                 .setDescription(String.format("%s %s the temporary %s. They will not be recorded in the " +
-                                              "hall of fame until they win a challenge.",
+                                "hall of fame until they win a challenge.",
                         formatUsers(tempXoth, false),
                         (tempXoth.length == 1 ? "is" : "are"), mode))
                 .build()).queue();
@@ -365,8 +365,8 @@ public class Hill {
 
         if (Database.Hill.lastTerms(mode, 1).length == 0) {
             Utils.replyError(cmd, "There is no sitting " + mode.name()
-                                  + ". Ask a mod to !hreplace you to become the "
-                                  + "temporary " + mode.name() + ".");
+                    + ". Ask a mod to !hreplace you to become the "
+                    + "temporary " + mode.name() + ".");
         } else {
             cmd.reply(new MessageBuilder().append("<@&")
                     .append(String.valueOf(GUILD_INFO.hillRoles.get(mode))).append(">")
@@ -436,7 +436,7 @@ public class Hill {
                 .setTitle(mode.name() + " Hall of Fame")
                 .setDescription(Arrays.stream(xothOrder).mapToObj(
                                 a -> "#" + (a + 1) + ": " + getOpponentName(xoths[a].opp, true) + " - " + termLengths[a] +
-                                     " challenges (<t:" + (xoths[a].timestamp / 1000) + ":D>)")
+                                        " challenges (<t:" + (xoths[a].timestamp / 1000) + ":D>)")
                         .limit(limit).collect(Collectors.joining("\n")));
 
         cmd.replyEmbeds(hofEmbed.build()).queue();
@@ -512,7 +512,7 @@ public class Hill {
                     mentions.stream()
                             .map(x -> "<@" + x.getIdLong() + ">")
                             .collect(Collectors.joining(" "))
-                    + " " + (mentions.size() == 1 ? "has" : "have") + " not been " + mode.name());
+                            + " " + (mentions.size() == 1 ? "has" : "have") + " not been " + mode.name());
             return;
         }
 
@@ -564,8 +564,8 @@ public class Hill {
     }
 
     @Command(name = "hill", subname = "record_id", desc = "Show the challenge history of the nth GoTH/AoTH, or the " +
-                                                          "latest " +
-                                                          "GoTH/AoTH if no index is provided", perms =
+            "latest " +
+            "GoTH/AoTH if no index is provided", perms =
             Constants.Perms.USER)
     public static void handleRecord(@NotNull SlashCommandEvent cmd,
                                     @CommandParameter(name = "mode",
@@ -689,15 +689,15 @@ public class Hill {
                                 .setTitle(Objects.requireNonNull(mode).name() + " Challenge Accepted",
                                         "https://generals.io/games/" + mode.toString().toLowerCase())
                                 .setDescription("**" + getOpponentName(incumbent, true) + " vs " +
-                                                getOpponentName(challengers, true) + (challengeIdx == 0 ? "" :
+                                        getOpponentName(challengers, true) + (challengeIdx == 0 ? "" :
                                         (" #" + (challengeIdx + 1))) + "**")
                                 .appendDescription("\nBest of " + bestOf)
                                 .build())
                         .setActionRows(ActionRow.of(List.of(
                                 Button.link("https://generals.io/games/"
-                                            + mode.name().toLowerCase(), "Play"),
+                                        + mode.name().toLowerCase(), "Play"),
                                 Button.link("https://generals.io/games/"
-                                            + mode.name().toLowerCase() + "?spectate=true",
+                                                + mode.name().toLowerCase() + "?spectate=true",
                                         "Spectate")
                         )))
                         .build()).queue((inx) -> inx.retrieveOriginal().queue(m -> challenge.challengeMsg = m));
@@ -731,7 +731,7 @@ public class Hill {
                             .setColor(Constants.Colors.ERROR)
                             .setTitle(mode + " Challenge Rejected")
                             .setDescription("The " + mode + " didn't want to play against "
-                                            + getOpponentName(challengers, true) + ".")
+                                    + getOpponentName(challengers, true) + ".")
                             .build())
                     .build()).queue();
         }
