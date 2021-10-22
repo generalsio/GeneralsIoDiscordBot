@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -90,7 +91,7 @@ public class Game {
 
         Constants.Mode mode = GUILD_INFO.channelToMode(cmd.getChannel().getIdLong());
         if (mode == null) {
-            Utils.replyError(cmd, "**!ping** can only be used in a game mode channel.");
+            Utils.replyError(cmd, "**/ping** can only be used in a game mode channel.");
             return;
         }
 
@@ -100,7 +101,8 @@ public class Game {
         }
 
         Role role = cmd.getGuild().getRoleById(GUILD_INFO.roles.get(mode));
-        cmd.reply(Objects.requireNonNull(role).getAsMention() + " (pinged by " + Objects.requireNonNull(cmd.getMember()).getAsMention() + ")").queue();
+        cmd.reply("Pinged by " + Objects.requireNonNull(cmd.getMember()).getAsMention()).queue();
+        cmd.getChannel().sendMessage(new MessageBuilder().setContent(Objects.requireNonNull(role).getAsMention()).build()).queue();
     }
 
     private static Message customLink(@NotNull SlashCommandEvent cmd, @NotNull Constants.Server server, String code,

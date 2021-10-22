@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Punishment handler
@@ -108,6 +109,10 @@ public class Punishments {
         }
     }
 
+    private static String escapeName(String name) {
+        return name.replaceAll("'", "'\\\\''");
+    }
+
     /**
      * Returns a list of the commands to run in order to punish/disable users previously added
      * <p>
@@ -120,17 +125,19 @@ public class Punishments {
     public static void handleGetCommands(@NotNull SlashCommandEvent cmd) {
         List<String> punish = new LinkedList<>(), disable = new LinkedList<>();
         Database.getPunishments(punish, disable);
+        punish = punish.stream().map(Punishments::escapeName).collect(Collectors.toList());
+        disable = disable.stream().map(Punishments::escapeName).collect(Collectors.toList());
 
         final EmbedBuilder embedBuilder = new EmbedBuilder().setTitle("In-Game Player Punishments").setColor(Color.RED);
         String disableString = "";
 
         if (!disable.isEmpty()) {
-            disableString = " \"" + String.join("\" \"", disable) + "\"";
+            disableString = " '" + String.join("' '", disable) + "'";
             embedBuilder.addField("Disable", "```bash\nnode scripts/disable_player.js" + disableString + "```", false);
         }
         if (!punish.isEmpty()) {
-            embedBuilder.addField("Punishment", "```bash\nnode scripts/fully_punish_player.js \"" +
-                            String.join("\" \"", punish) + "\"" + disableString + "```",
+            embedBuilder.addField("Punishment", "```bash\nnode scripts/fully_punish_player.js '" +
+                            String.join("' '", punish) + "'" + disableString + "```",
                     false);
         }
         MessageBuilder builder = new MessageBuilder();

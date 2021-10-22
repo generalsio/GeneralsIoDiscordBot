@@ -349,8 +349,8 @@ public class Commands extends ListenerAdapter {
                                         .setTitle("Unknown generals.io Username")
                                         .setDescription("""
                                                 You must register your generals.io username.\s
-                                                Use ``!addname username`` to register.
-                                                Example: ```!addname MyName321```""")
+                                                Use ``/addname username`` to register.
+                                                Example: ```/addname MyName321```""")
                                         .setColor(Constants.Colors.ERROR).build()).build()).queue();
                         return; // If one is perms.none they all are so return is fine
                     }
@@ -419,8 +419,8 @@ public class Commands extends ListenerAdapter {
                             .setThumbnail(event.getMember().getUser().getEffectiveAvatarUrl())
                             .setColor(Constants.Colors.SUCCESS)
                             .setDescription("""
-                                    Make sure you add your generals.io name to our bot, using ``!addname generals.io_username``.
-                                    Example: ```!addname MyName321```
+                                    Make sure you add your generals.io name to our bot, using ``/addname generals.io_username``.
+                                    Example: ```/addname MyName321```
                                     Head over to <#754022719879643258> to register your name.""")
                             .addField("Roles", "Want a role specific to the game modes you play? After registering " +
                                     "your " +

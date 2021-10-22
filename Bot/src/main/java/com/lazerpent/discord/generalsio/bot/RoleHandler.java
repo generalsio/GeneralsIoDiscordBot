@@ -25,8 +25,8 @@ public class RoleHandler {
                                 .setTitle("Unknown generals.io Username")
                                 .setDescription("""
                                         To add roles, you must register your generals.io username.\s
-                                        Use ``!addname username`` to register.
-                                        Example: ```!addname MyName321```""")
+                                        Use ``/addname username`` to register.
+                                        Example: ```/addname MyName321```""")
                                 .setColor(Constants.Colors.ERROR).build()).queue());
                 return;
             }
