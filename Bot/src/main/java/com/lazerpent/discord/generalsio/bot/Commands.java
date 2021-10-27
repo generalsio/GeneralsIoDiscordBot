@@ -423,9 +423,13 @@ public class Commands extends ListenerAdapter {
                                     Example: ```/addname MyName321```
                                     Head over to <#754022719879643258> to register your name.""")
                             .addField("Roles", "Want a role specific to the game modes you play? After registering " +
-                                    "your " +
-                                    "name, head over to <#787821221164351568> to get some roles.", false)
+                                               "your " +
+                                               "name, head over to <#787821221164351568> to get some roles.", false)
                             .build()).build()).queue();
+
+            event.getGuild().addRoleToMember(event.getMember(),
+                    Objects.requireNonNull(event.getGuild().getRoleById(Constants.GUILD_INFO
+                            .get(event.getGuild().getIdLong()).eventRole))).queue();
         } catch (Exception e) {
             logIfPresent(e, event.getGuild());
         }
