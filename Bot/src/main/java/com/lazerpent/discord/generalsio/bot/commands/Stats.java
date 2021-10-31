@@ -17,6 +17,8 @@ import org.jfree.chart.JFreeChart;
 import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -38,10 +40,10 @@ public class Stats {
         EmbedBuilder statEmbed = new EmbedBuilder().setTitle((saved ? "Saved " : "") + username + "'s Stats")
                 .setDescription("**Total Games Played:** " + replays.size()).setColor(Constants.Colors.SUCCESS);
         long timePlayed = (long) replays.stream().mapToDouble((r) -> r.turns
-                                                                     * Math.min(0.5,
+                * Math.min(0.5,
                 0.5 * r.getPercentile(username) * r.ranking.length / (r.ranking.length - 1))).sum();
         statEmbed.appendDescription("\n**Total Time Played:** " + (timePlayed / 3600) + "h "
-                                    + (timePlayed / 60 % 60) + "m " + (timePlayed % 60) + "s");
+                + (timePlayed / 60 % 60) + "m " + (timePlayed % 60) + "s");
         OptionalDouble winRate1v1 = replays.stream()
                 .filter((r) -> r.type.equals("1v1") && r.hasPlayer(username) && r.turns >= 50)
                 .mapToInt((r) -> (r.isWin(username) ? 1 : 0)).average();
@@ -134,7 +136,7 @@ public class Stats {
                                                optional = true) Integer bucketSize,
                                        @CommandParameter(name = "star_min",
                                                desc = "The minimum number of stars an opponent can have for " +
-                                                      "a game to be considered in the graph",
+                                                       "a game to be considered in the graph",
                                                optional = true) Integer starMin) {
         if (bucketSize == null) {
             bucketSize = 200;
@@ -245,7 +247,7 @@ public class Stats {
         EXECUTOR.execute(() -> {
             List<ReplayResult> replays = ReplayStatistics.getReplays(username1);
             replays = replays.stream().filter((r) -> r.hasPlayer(username2) && r.turns >= 50
-                                                     && (r.type.equals("1v1") || r.type.equals("custom") && r.ranking.length == 2))
+                            && (r.type.equals("1v1") || r.type.equals("custom") && r.ranking.length == 2))
                     .collect(Collectors.toCollection(ArrayList::new));
             int wins1v1 = 0;
             int tot1v1 = 0;
@@ -267,7 +269,7 @@ public class Stats {
                     .appendDescription(
                             "\n**In Custom 1v1s:** " + winsCustom + "-" + (totCustom - winsCustom))
                     .appendDescription("\n**Total:** " + (wins1v1 + winsCustom) + "-"
-                                       + (totCustom + tot1v1 - winsCustom - wins1v1));
+                            + (totCustom + tot1v1 - winsCustom - wins1v1));
             if (replays.size() > 3) {
                 vsEmbed.appendDescription("\n\n**Sample replays:**");
                 for (int a = replays.size() - 1; a >= replays.size() - 3; a--) {
@@ -284,7 +286,7 @@ public class Stats {
     @Command(name = "getstats", desc = "Calculate a player's stats.", perms = Constants.Perms.USER)
     public static void handleGetStats(@NotNull SlashCommandEvent cmd,
                                       @CommandParameter(name = "username", desc = "The player whose stats should be " +
-                                                                                  "calculated")
+                                              "calculated")
                                               String username) {
         if (!REQUEST_LIMITER.tryAcquire()) {
             Utils.replyError(cmd, "Too many commands are being processed at once! Try again later.");
@@ -298,34 +300,46 @@ public class Stats {
         });
     }
 
-    @Command(name = "stats2v2", desc = "Calculate 2v2 win rate stats from recent games.", perms =
+    @Command(name = "stats2v2", desc = "Calculate 2v2 win rate stats from recent games (starting from 1 day ago by default).", perms =
             Constants.Perms.USER)
     public static void handleStats2v2(@NotNull SlashCommandEvent cmd,
                                       @CommandParameter(name = "username",
-                                              desc = "The player whose 2v2 stats should be calculated") String username) {
+                                              desc = "The player whose 2v2 stats should be calculated") String username,
+                                      @CommandParameter(name = "days",
+                                              desc = "The number of days to look back over.",
+                                              optional = true) Integer days) {
+        if (days != null && days <= 0) {
+            Utils.replyError(cmd, "Number of days must be a positive number.");
+            return;
+        }
         if (!REQUEST_LIMITER.tryAcquire()) {
             Utils.replyError(cmd, "Too many commands are being processed at once! Try again later.");
             return;
         }
         cmd.deferReply().queue();
         EXECUTOR.execute(() -> {
-            Map<String, Pair<Integer, Integer>> res2v2 = ReplayStatistics.processRecent2v2Replays(username);
-            Pair<Integer, Integer> overall = res2v2.get(username);
+            int checkDays = 1;
+            if (days != null) {
+                checkDays = days;
+            }
+            ReplayStatistics.SearchResult2v2 res2v2 = ReplayStatistics.processRecent2v2Replays(username, checkDays);
+            ReplayStatistics.WinRecord2v2 overall = res2v2.partnerStats().get(username);
             if (overall == null) {
                 cmd.getHook().editOriginalEmbeds(
                         Utils.error(cmd, "Could not find recent 2v2 games for " + username + ".")).queue();
             } else {
-                EmbedBuilder embed2v2 = new EmbedBuilder().setTitle("2v2 Stats").setColor(Constants.Colors.SUCCESS)
-                        .setDescription(String.format("\n**Overall Record:** %dW-%dL (%.2f%%)", overall.getLeft(),
-                                overall.getRight() - overall.getLeft(),
-                                100.0 * overall.getLeft() / overall.getRight()));
-                for (String u : res2v2.keySet()) {
+                EmbedBuilder embed2v2 = new EmbedBuilder().setTitle("2v2 Stats").setColor(Constants.Colors.SUCCESS).setDescription("Stats from after <t:" + Math.max(res2v2.lastChecked(), Instant.now().minus(checkDays, ChronoUnit.DAYS).getEpochSecond()) + ":f>");
+                embed2v2.appendDescription(String.format("\n\n**Overall Record:** %dW-%dL (%.2f%%)", overall.wins(),
+                        overall.totalPlayed() - overall.wins(),
+                        100.0 * overall.wins() / overall.totalPlayed()));
+                for (Map.Entry<String, ReplayStatistics.WinRecord2v2> entry : res2v2.partnerStats().entrySet()) {
+                    String u = entry.getKey();
+                    ReplayStatistics.WinRecord2v2 cur = entry.getValue();
                     if (u.equals(username))
                         continue;
-                    Pair<Integer, Integer> cur = res2v2.get(u);
                     embed2v2.appendDescription(String.format("\n**Record with %s:** %dW-%dL (%.2f%%)", u,
-                            cur.getLeft(),
-                            cur.getRight() - cur.getLeft(), 100.0 * cur.getLeft() / cur.getRight()));
+                            cur.wins(),
+                            cur.totalPlayed() - cur.wins(), 100.0 * cur.wins() / cur.totalPlayed()));
                 }
                 cmd.getHook().editOriginalEmbeds(embed2v2.build()).queue();
             }

@@ -120,6 +120,7 @@ public class Game {
         String baseURL = "https://" + server.host() + "/games/" + Utils.encodeURI(link);
 
         List<String> query = new ArrayList<>();
+        boolean spectatable = false;
         if (link.equals("main") || link.equals("1v1")) {
             map = null;
             speed = 1;
@@ -129,6 +130,7 @@ public class Game {
             speed = 1;
             baseURL = "https://" + server.host() + "/teams/matchmaking";
         } else {
+            spectatable = true;
             if (speed != 1) {
                 query.add("speed=" + speed);
             }
@@ -150,11 +152,18 @@ public class Game {
                         .setFooter(Objects.requireNonNull(cmd.getMember()).getUser().getAsTag() + " • "
                                         + Database.getGeneralsName(cmd.getMember().getUser().getIdLong()),
                                 cmd.getMember().getUser().getAvatarUrl());
+        List<Button> buttons;
+        if(spectatable) {
+            buttons = new ArrayList<>(List.of(
+                    Button.link(playURL, "Play"),
+                    Button.link(spectateURL, "Spectate")
+            ));
+        } else {
+            buttons = new ArrayList<>(List.of(
+                    Button.link(playURL, "Play")
+            ));
+        }
 
-        List<Button> buttons = new ArrayList<>(List.of(
-                Button.link(playURL, "Play"),
-                Button.link(spectateURL, "Spectate")
-        ));
 
         if (map != null) {
             buttons.add(Button.link("https://" + server.host() + "/maps/" + Utils.encodeURI(map), "Map"));

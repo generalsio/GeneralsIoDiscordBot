@@ -373,6 +373,17 @@ public class Announcements {
                     null,
                     null,
                     EventType.Ones),
+            new TournamentData("2v2 Tournament #7",
+                    "October 30, 2021",
+                    "I feel like all the good players messaged each other and decided to let me win one for once, thanks y’all.",
+                    null,
+                    "matt",
+                    "zzd233",
+                    null,
+                    null,
+                    null,
+                    "Baidu",
+                    EventType.Twos),
     };
     private static BufferedImage tempCrown;
 

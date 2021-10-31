@@ -5,7 +5,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.lazerpent.discord.generalsio.dependencies.LZStringImpl;
-import org.apache.commons.lang3.tuple.Pair;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.StandardChartTheme;
@@ -24,7 +23,10 @@ import org.jfree.data.time.TimeSeriesCollection;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -33,9 +35,25 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import java.util.zip.DataFormatException;
@@ -91,8 +109,8 @@ public class ReplayStatistics {
             }
             try {
                 URL replayCheck = new URL("https://generals.io/api/replaysForUsername?u=" +
-                                          URLEncoder.encode(username, StandardCharsets.UTF_8) +
-                                          "&offset=" + offset + "&count=" + count);
+                        URLEncoder.encode(username, StandardCharsets.UTF_8) +
+                        "&offset=" + offset + "&count=" + count);
                 try (InputStream replays = replayCheck.openStream()) {
                     if (retryCount > 0) {
                         System.out.println("Retry success on Try #" + (retryCount + 1));
@@ -353,7 +371,7 @@ public class ReplayStatistics {
         URL replayURL;
         try {
             replayURL = new URL("https://generalsio-replays-na.s3.amazonaws.com/" + id +
-                                ".gior");
+                    ".gior");
         } catch (MalformedURLException e) {
             replayIndividualSem.release();
             System.out.println("Could not acquire replay " + id + ": " + e.getMessage());
@@ -392,54 +410,76 @@ public class ReplayStatistics {
         }
     }
 
-    public static Map<String, Pair<Integer, Integer>> processRecent2v2Replays(String username) {
-        Map<String, Pair<Integer, Integer>> res = new ConcurrentHashMap<>();
-        List<ReplayResult> replayResults = getReplays(username, 200, 0);
-        if (replayResults.size() == 0) {
-            return new HashMap<>();
-        }
-        replayResults = replayResults.parallelStream()
-                .filter((r) -> r.type.equals("2v2") || r.type.equals("custom") && r.ranking.length == 4)
-                .toList();
-        convertReplayFiles(replayResults).forEach((key, curReplay) -> {
-            String winner = key.ranking[0].name;
-            if (winner == null) return;
-            if (curReplay.teams != null) {
-                int winIdx = 0;
-                int playerIdx = 0;
-                for (int a = 0; a < curReplay.usernames.length; a++) {
-                    if (curReplay.usernames[a].equals(winner)) {
-                        winIdx = a;
-                    }
-                    if (curReplay.usernames[a].equals(username)) {
-                        playerIdx = a;
-                    }
-                }
-                String partner = "";
-                Set<Integer> s = new HashSet<>();
-                boolean not2v2 = false;
-                for (int a = 0; a < curReplay.teams.length; a++) {
-                    if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
-                        if (!partner.equals("")) {
-                            not2v2 = true;
-                            break;
-                        }
-                        partner = curReplay.usernames[a];
-                    }
-                    s.add(curReplay.teams[a]);
-                }
-                if (not2v2 || s.size() != 2 || partner.equals("")) return;
-                res.merge(partner,
-                        Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                a.getRight() + b.getRight()));
-                res.merge(username,
-                        Pair.of((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
-                                0), 1), (a, b) -> Pair.of(a.getLeft() + b.getLeft(),
-                                a.getRight() + b.getRight()));
+    public record WinRecord2v2(int wins, int totalPlayed) {
+    }
+
+    public record SearchResult2v2(long lastChecked, Map<String, WinRecord2v2> partnerStats) {
+    }
+
+    public static SearchResult2v2 processRecent2v2Replays(String username, int days) {
+        Map<String, WinRecord2v2> res = new ConcurrentHashMap<>();
+        Instant cutoff = Instant.now().minus(days, ChronoUnit.DAYS);
+        long lastChecked = Long.MAX_VALUE;
+        for (int offset = 0; offset <= 600; offset += 200) {
+            List<ReplayResult> replayResults = getReplays(username, 200, offset);
+            if (replayResults.size() == 0) {
+                return new SearchResult2v2(0, new HashMap<>());
             }
-        });
-        return res;
+            replayResults = replayResults.parallelStream()
+                    .filter((r) -> r.type.equals("2v2") || r.type.equals("custom") && r.ranking.length == 4)
+                    .toList();
+            Map<ReplayResult, Replay> replayFileMap = convertReplayFiles(replayResults);
+            boolean cut = false;
+            for (Map.Entry<ReplayResult, Replay> entry : replayFileMap.entrySet()) {
+                ReplayResult key = entry.getKey();
+                Replay curReplay = entry.getValue();
+                lastChecked = Math.min(lastChecked, key.started / 1000);
+                if (cutoff.isAfter(Instant.ofEpochMilli(key.started))) {
+                    cut = true;
+                    continue;
+                }
+                String winner = key.ranking[0].name;
+                if (winner == null) continue;
+                if (curReplay.teams != null) {
+                    int winIdx = 0;
+                    int playerIdx = 0;
+                    for (int a = 0; a < curReplay.usernames.length; a++) {
+                        if (curReplay.usernames[a].equals(winner)) {
+                            winIdx = a;
+                        }
+                        if (curReplay.usernames[a].equals(username)) {
+                            playerIdx = a;
+                        }
+                    }
+                    String partner = "";
+                    Set<Integer> s = new HashSet<>();
+                    boolean not2v2 = false;
+                    for (int a = 0; a < curReplay.teams.length; a++) {
+                        if (curReplay.teams[a] == curReplay.teams[playerIdx] && a != playerIdx) {
+                            if (!partner.equals("")) {
+                                not2v2 = true;
+                                break;
+                            }
+                            partner = curReplay.usernames[a];
+                        }
+                        s.add(curReplay.teams[a]);
+                    }
+                    if (not2v2 || s.size() != 2 || partner.equals("")) continue;
+                    res.merge(partner,
+                            new WinRecord2v2((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                    0), 1), (a, b) -> new WinRecord2v2(a.wins + b.wins,
+                                    a.totalPlayed + b.totalPlayed));
+                    res.merge(username,
+                            new WinRecord2v2((curReplay.teams[winIdx] == curReplay.teams[playerIdx] ? 1 :
+                                    0), 1), (a, b) -> new WinRecord2v2(a.wins + b.wins,
+                                    a.totalPlayed + b.totalPlayed));
+                }
+            }
+            if (cut) {
+                break;
+            }
+        }
+        return new SearchResult2v2(lastChecked, res);
     }
 
     public enum GameMode {
