@@ -38,6 +38,7 @@ import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,6 +73,7 @@ public class ReplayStatistics {
                     Objects.requireNonNull(Bot.class.getClassLoader().getResourceAsStream("Quicksand-Regular.ttf")));
             ge.registerFont(font);
         } catch (Exception e) {
+            // TODO: make a better method for reporting these problems
             System.out.println("Couldn't load font for graphs: " + e.getMessage());
             e.printStackTrace();
         }
@@ -439,6 +442,13 @@ public class ReplayStatistics {
                     continue;
                 }
                 String winner = key.ranking[0].name;
+                Optional<ReplayResult.Player> curPlayer = Arrays.stream(key.ranking).filter((player) -> player.currentName.equals(username)).findFirst();
+                String pastName;
+                if(curPlayer.isPresent()) {
+                    pastName = curPlayer.get().name;
+                } else {
+                    continue;
+                }
                 if (winner == null) continue;
                 if (curReplay.teams != null) {
                     int winIdx = 0;
@@ -447,7 +457,7 @@ public class ReplayStatistics {
                         if (curReplay.usernames[a].equals(winner)) {
                             winIdx = a;
                         }
-                        if (curReplay.usernames[a].equals(username)) {
+                        if (curReplay.usernames[a].equals(pastName)) {
                             playerIdx = a;
                         }
                     }
@@ -502,7 +512,7 @@ public class ReplayStatistics {
 
         public double getPercentile(String username) {
             for (int a = 0; a < ranking.length; a++) {
-                if (ranking[a].name != null && ranking[a].name.equals(username)) {
+                if (ranking[a].currentName != null && ranking[a].currentName.equals(username)) {
                     return 1.0 * (ranking.length - a) / ranking.length;
                 }
             }
@@ -511,7 +521,7 @@ public class ReplayStatistics {
 
         public boolean hasPlayer(String username) {
             for (Player p : ranking) {
-                if (p.name != null && p.name.equals(username)) {
+                if (p.currentName != null && p.currentName.equals(username)) {
                     return true;
                 }
             }
@@ -519,21 +529,22 @@ public class ReplayStatistics {
         }
 
         public boolean isWin(String username) {
-            if (ranking[0].name == null) {
+            if (ranking[0].currentName == null) {
                 return false;
             }
-            return ranking[0].name.equals(username);
+            return ranking[0].currentName.equals(username);
         }
 
         public int getOpponentStars(String username) {
             if (ranking.length > 2) {
                 return -1; // meant for 1v1
             }
-            return ranking[ranking[0].name != null && ranking[0].name.equals(username) ? 1 : 0].stars;
+            return ranking[ranking[0].currentName != null && ranking[0].currentName.equals(username) ? 1 : 0].stars;
         }
 
         public static class Player {
             public String name;
+            public String currentName;
             public int stars;
         }
     }
