@@ -114,7 +114,7 @@ public class Users {
             nickWupey = cmd.getUser().getIdLong();
             Objects.requireNonNull(cmd.getGuild()).modifyNickname(Objects.requireNonNull(cmd.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
         } else {
-            if (nickWupey == 356517795791503393L) {
+            if (nickWupey == 356517795791503393L & cmd.getUser().getIdLong() != nickWupey) {
                 Utils.replyError(cmd, "Only Lazerpent can turn off nickwupey if Lazerpent turned it on");
                 return;
             }
