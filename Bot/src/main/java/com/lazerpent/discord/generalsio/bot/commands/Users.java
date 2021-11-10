@@ -19,9 +19,9 @@ import java.util.Objects;
 
 @Category(name = "Users")
 public class Users {
-    private static boolean nickWupey = false;
+    private static Long nickWupey = null;
 
-    public static boolean getNickWupey() {
+    public static Long getNickWupey() {
         return nickWupey;
     }
 
@@ -110,13 +110,19 @@ public class Users {
             return;
         }
 
-        nickWupey = !nickWupey;
-        if (nickWupey) {
+        if (nickWupey == null) {
+            nickWupey = cmd.getUser().getIdLong();
             Objects.requireNonNull(cmd.getGuild()).modifyNickname(Objects.requireNonNull(cmd.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
+        } else {
+            if (nickWupey == 356517795791503393L) {
+                Utils.replyError(cmd, "Only Lazerpent can turn off nickwupey if Lazerpent turned it on");
+                return;
+            }
+            nickWupey = null;
         }
 
-        cmd.replyEmbeds(new EmbedBuilder().setTitle("Auto-Nick").setDescription("Switched to " + (nickWupey ?
-                "enabled." : "disabled.")).build()).queue();
+        cmd.replyEmbeds(new EmbedBuilder().setTitle("Auto-Nick").setDescription("Switched to " + (nickWupey == null ?
+                "disabled." : "enabled.")).build()).queue();
     }
 
     @Command(name = "setname", desc = "Change generals.io username of user", perms =

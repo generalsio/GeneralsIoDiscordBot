@@ -460,7 +460,7 @@ public class Commands extends ListenerAdapter {
     @Override
     public void onGuildMemberUpdateNickname(@NotNull GuildMemberUpdateNicknameEvent event) {
         try {
-            if (event.getUser().isBot() || !Users.getNickWupey())
+            if (event.getUser().isBot() || Users.getNickWupey() == null)
                 return;
             if (event.getEntity().getIdLong() == 175430325755838464L) {
                 if (!"Wupey".equals(event.getNewNickname())) {
