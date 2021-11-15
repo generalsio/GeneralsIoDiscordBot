@@ -10,8 +10,6 @@ import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameEvent;
 import net.dv8tion.jda.api.events.interaction.ButtonClickEvent;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
-import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
-import net.dv8tion.jda.api.events.message.MessageUpdateEvent;
 import net.dv8tion.jda.api.events.message.guild.react.GuildMessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
@@ -41,7 +39,7 @@ public class Commands extends ListenerAdapter {
 
     static {
         List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
-        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class, Punishments.class, Announcements.class};
+        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class, Announcements.class};
 
         for (Class<?> classCamelCase : classes) {
             if (classCamelCase.getAnnotation(Category.class) != null) {
@@ -65,7 +63,7 @@ public class Commands extends ListenerAdapter {
                 slashCommands.get(names.get(2)).get(names.get(1)).put(names.get(0), method);
             } else {
                 throw new IllegalStateException("Colliding command names: " + command.name()
-                        + "/" + command.subgroup() + "/" + command.subname());
+                                                + "/" + command.subgroup() + "/" + command.subname());
             }
         }
     }
@@ -89,7 +87,7 @@ public class Commands extends ListenerAdapter {
                 c.sendMessage(context).queue();
             }
             String errorMessage = write.toString();
-            for(int offset = 0; offset < errorMessage.length(); offset += 2000) {
+            for (int offset = 0; offset < errorMessage.length(); offset += 2000) {
                 c.sendMessage(errorMessage.substring(offset, offset + 2000)).complete();
             }
         }
@@ -131,7 +129,7 @@ public class Commands extends ListenerAdapter {
                     if (curCommand.perms() <= perms) {
                         categoryCommands.putIfAbsent(category, new ArrayList<>());
                         categoryCommands.get(category).add((curCommand.name() + " " + curCommand.subgroup() +
-                                " " + curCommand.subname()).trim());
+                                                            " " + curCommand.subname()).trim());
                     }
                 }
             }
@@ -286,7 +284,7 @@ public class Commands extends ListenerAdapter {
         }
         // NOTE: UPDATING ONE COMMAND WILL NOT UPDATE THE LIST - THIS MUST BE TOGGLED TO BE TRUE
         if (event.getJDA().retrieveCommands().complete().size() != slashCommandBuffer.size() ||
-                System.getenv("UPDATE_COMMANDS") != null) {
+            System.getenv("UPDATE_COMMANDS") != null) {
             event.getJDA().updateCommands().queue();
 
             // This assumes that guild 0 is one of the guilds in Constants.GUILD_DATA
@@ -305,34 +303,6 @@ public class Commands extends ListenerAdapter {
             guild.updateCommandPrivileges(privileges).queue();
         }
         Hill.init();
-    }
-
-    @Override
-    public void onMessageReceived(@NotNull MessageReceivedEvent messageEvent) {
-        if (messageEvent.getAuthor().isBot()) {
-            return;
-        }
-        Guild g = messageEvent.getGuild();
-        if (messageEvent.getMessage().getChannel().getIdLong() == Constants.GUILD_INFO.get(g.getIdLong()).reportCheatersChannel) {
-            String content = messageEvent.getMessage().getContentStripped();
-            if (content.startsWith("Report:") || content.startsWith("report:")) {
-                Punishments.handleReport(messageEvent.getMessage());
-            }
-        }
-    }
-
-    @Override
-    public void onMessageUpdate(@NotNull MessageUpdateEvent messageEvent) {
-        if (messageEvent.getAuthor().isBot()) {
-            return;
-        }
-        Guild g = messageEvent.getGuild();
-        if (messageEvent.getMessage().getChannel().getIdLong() == Constants.GUILD_INFO.get(g.getIdLong()).reportCheatersChannel) {
-            String content = messageEvent.getMessage().getContentStripped();
-            if (content.startsWith("Report:") || content.startsWith("report:")) {
-                Punishments.handleReportEdit(messageEvent.getMessage());
-            }
-        }
     }
 
     @Override
@@ -442,9 +412,6 @@ public class Commands extends ListenerAdapter {
     public void onButtonClick(ButtonClickEvent event) {
         if (event.getComponentId().startsWith("goth-") || event.getComponentId().startsWith("aoth-")) {
             Hill.handleButtonClick(event);
-        }
-        if (event.getComponentId().startsWith("punish-")) {
-            Punishments.onButtonClick(event);
         }
     }
 
