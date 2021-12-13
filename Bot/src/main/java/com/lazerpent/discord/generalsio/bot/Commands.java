@@ -88,7 +88,7 @@ public class Commands extends ListenerAdapter {
             }
             String errorMessage = write.toString();
             for (int offset = 0; offset < errorMessage.length(); offset += 2000) {
-                c.sendMessage(errorMessage.substring(offset, offset + 2000)).complete();
+                c.sendMessage(errorMessage.substring(offset, Math.min(errorMessage.length(), offset + 2000))).complete();
             }
         }
     }

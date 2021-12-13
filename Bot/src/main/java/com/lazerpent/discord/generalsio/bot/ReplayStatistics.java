@@ -442,7 +442,7 @@ public class ReplayStatistics {
                     continue;
                 }
                 String winner = key.ranking[0].name;
-                Optional<ReplayResult.Player> curPlayer = Arrays.stream(key.ranking).filter((player) -> player.currentName.equals(username)).findFirst();
+                Optional<ReplayResult.Player> curPlayer = Arrays.stream(key.ranking).filter((player) -> player.currentName != null && player.currentName.equals(username)).findFirst();
                 String pastName;
                 if(curPlayer.isPresent()) {
                     pastName = curPlayer.get().name;

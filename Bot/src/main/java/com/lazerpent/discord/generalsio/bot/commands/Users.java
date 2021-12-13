@@ -11,6 +11,7 @@ import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
 import org.jetbrains.annotations.NotNull;
@@ -85,9 +86,12 @@ public class Users {
 
         Database.User existingUser = Database.User.fromUsername(username);
         if (existingUser != null) {
-            if (cmd.getGuild().retrieveBanById(existingUser.discordId()).complete() != null) {
+            try {
+                cmd.getGuild().retrieveBanById(existingUser.discordId()).complete();
                 Utils.replyError(cmd, "**" + username + "** is banned");
                 return;
+            } catch(ErrorResponseException ignored) {
+
             }
 
             Member m = cmd.getGuild().getMemberById(existingUser.discordId());
