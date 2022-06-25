@@ -1,5 +1,6 @@
 package com.lazerpent.discord.generalsio.bot.commands;
 
+import com.lazerpent.discord.generalsio.bot.ApplicationHandler;
 import com.lazerpent.discord.generalsio.bot.Commands.Category;
 import com.lazerpent.discord.generalsio.bot.Commands.Command;
 import com.lazerpent.discord.generalsio.bot.Commands.CommandParameter;
@@ -90,7 +91,7 @@ public class Users {
                 cmd.getGuild().retrieveBanById(existingUser.discordId()).complete();
                 Utils.replyError(cmd, "**" + username + "** is banned");
                 return;
-            } catch(ErrorResponseException ignored) {
+            } catch (ErrorResponseException ignored) {
 
             }
 
@@ -149,4 +150,19 @@ public class Users {
                                                 "**").build()).build()).queue();
     }
 
+
+    //    @Command(name = "apply", desc = "Open an application to become a generals.io Discord Moderator",
+//            perms = Constants.Perms.USER)
+    @SuppressWarnings("unused")
+    public static void apply(@NotNull SlashCommandEvent cmd) {
+        ApplicationHandler.apply(cmd);
+    }
+
+
+    //    @Command(name = "cancelapply", desc = "Cancel an application - can only be used in your application channel",
+//            perms = Constants.Perms.USER)
+    @SuppressWarnings("unused")
+    public static void cancelApply(@NotNull SlashCommandEvent cmd) {
+        ApplicationHandler.cancelapply(cmd);
+    }
 }

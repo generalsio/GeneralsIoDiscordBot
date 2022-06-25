@@ -8,6 +8,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.NumberFormat;
 import java.time.Instant;
 
 /**
@@ -105,5 +106,11 @@ public class Utils {
 
     public static String encodeURI(String data) {
         return URLEncoder.encode(data, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
+    }
+
+    public static String formatNumber(long num) {
+        NumberFormat formatter = NumberFormat.getCurrencyInstance();
+        formatter.setMaximumFractionDigits(0);
+        return formatter.format(num).replaceFirst("\\$", "").replace(".00", "");
     }
 }

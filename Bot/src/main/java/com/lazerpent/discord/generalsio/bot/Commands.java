@@ -284,7 +284,7 @@ public class Commands extends ListenerAdapter {
         }
         // NOTE: UPDATING ONE COMMAND WILL NOT UPDATE THE LIST - THIS MUST BE TOGGLED TO BE TRUE
         if (event.getJDA().retrieveCommands().complete().size() != slashCommandBuffer.size() ||
-            System.getenv("UPDATE_COMMANDS") != null) {
+            System.getenv("UPDATE_COMMANDS") != null || true) {
             event.getJDA().updateCommands().queue();
 
             // This assumes that guild 0 is one of the guilds in Constants.GUILD_DATA
