@@ -12,8 +12,8 @@
     <artifactId>Dependencies</artifactId>
 
     <properties>
-        <maven.compiler.source>16</maven.compiler.source>
-        <maven.compiler.target>16</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
     </properties>
 
     <build>
@@ -58,6 +58,10 @@
 
     <repositories>
         <repository>
+            <id>ukp-oss-releases</id>
+            <url>https://zoidberg.ukp.informatik.tu-darmstadt.de/artifactory/public-releases</url>
+        </repository>
+        <repository>
             <id>jcenter</id>
             <name>jcenter</name>
             <url>https://jcenter.bintray.com/</url>
@@ -74,10 +78,6 @@
             <id>m2-dv8tion</id>
             <name>m2-dv8tion</name>
             <url>https://m2.dv8tion.net/releases</url>
-        </repository>
-        <repository>
-            <id>ukp-oss-releases</id>
-            <url>http://zoidberg.ukp.informatik.tu-darmstadt.de/artifactory/public-releases/</url>
         </repository>
     </repositories>
 
@@ -143,8 +143,8 @@
             <version>1.5.3</version>
         </dependency>
         <dependency>
-            <groupId>gnu.trove</groupId>
-            <artifactId>trove</artifactId>
+            <groupId>net.sf.trove4j</groupId>
+            <artifactId>trove4j</artifactId>
             <version>3.0.3</version>
         </dependency>
     </dependencies>

@@ -41,6 +41,7 @@ public class Constants {
                     .setEventNotificationRole(871581354800861200L)
                     .setReportCheatersChannel(871581355526459508L)
                     .setReportRecordChannel(900771668971102258L)
+                    .setApplicationCategory(979185782252273684L)
                     .setDevelopment(true)
                     .build(),
 
@@ -70,6 +71,7 @@ public class Constants {
                     .setReportCheatersChannel(714986176859340831L)
                     .setReportRecordChannel(900772522331619358L)
                     .setEventNotificationRole(896836627895320606L)
+                    .setApplicationCategory(979185658692243487L)
                     .build()
     );
 
@@ -159,6 +161,7 @@ public class Constants {
         public long errorChannel = -1;
         public long reportCheatersChannel = -1;
         public long reportRecordChannel = -1;
+        public long applicationCategory = -1;
         public long eventRole;
         private boolean built;
 
@@ -241,6 +244,12 @@ public class Constants {
         public GuildInfo setReportRecordChannel(long id) {
             if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
             this.reportRecordChannel = id;
+            return this;
+        }
+
+        public GuildInfo setApplicationCategory(long id) {
+            if (this.built) throw new IllegalStateException("object already built, how are you messing this up");
+            this.applicationCategory = id;
             return this;
         }
 

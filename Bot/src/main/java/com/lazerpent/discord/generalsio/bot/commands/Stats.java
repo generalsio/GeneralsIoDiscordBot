@@ -18,11 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.OptionalDouble;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -39,6 +35,23 @@ public class Stats {
     private static final int STORED_PLAYER_LIMIT = 6;
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
 
+    private static int findWinStreak(PrimitiveIterator.OfInt wins) {
+        int curStreak = 0;
+        int streak = 0;
+        while (wins.hasNext()) {
+            int win = wins.nextInt();
+            if (win == 1) {
+                curStreak++;
+            } else {
+                curStreak = 0;
+            }
+            if(curStreak > streak) {
+                streak = curStreak;
+            }
+        }
+        return streak;
+    }
+
     public static MessageEmbed getStatEmbed(List<ReplayResult> replays, String username, boolean saved) {
         EmbedBuilder statEmbed = new EmbedBuilder().setTitle((saved ? "Saved " : "") + username + "'s Stats")
                 .setDescription("**Total Games Played:** " + replays.size()).setColor(Constants.Colors.SUCCESS);
@@ -51,15 +64,21 @@ public class Stats {
                 .filter((r) -> r.type.equals("1v1") && r.hasPlayer(username) && r.turns >= 50)
                 .mapToInt((r) -> (r.isWin(username) ? 1 : 0)).average();
         if (winRate1v1.isPresent()) {
-            statEmbed
-                    .appendDescription(String.format("\n**1v1 Win Rate:** %.2f%%", winRate1v1.getAsDouble() * 100));
+            statEmbed.appendDescription(String.format("\n**1v1 Win Rate:** %.2f%%", winRate1v1.getAsDouble() * 100));
+            int streak1v1 = findWinStreak(replays.stream()
+                    .filter((r) -> r.type.equals("1v1") && r.hasPlayer(username) && r.turns >= 50)
+                    .mapToInt((r) -> (r.isWin(username) ? 1 : 0)).iterator());
+            statEmbed.appendDescription((String.format("\n**1v1 Best Win Streak:** %d", streak1v1)));
         }
         OptionalDouble winRateFFA = replays.stream()
                 .filter((r) -> r.type.equals("classic") && r.hasPlayer(username) && r.turns >= 50)
                 .mapToInt((r) -> (r.isWin(username) ? 1 : 0)).average();
         if (winRateFFA.isPresent()) {
-            statEmbed
-                    .appendDescription(String.format("\n**FFA Win Rate:** %.2f%%", winRateFFA.getAsDouble() * 100));
+            statEmbed.appendDescription(String.format("\n**FFA Win Rate:** %.2f%%", winRateFFA.getAsDouble() * 100));
+            int streakFFA = findWinStreak(replays.stream()
+                    .filter((r) -> r.type.equals("classic") && r.hasPlayer(username) && r.turns >= 50)
+                    .mapToInt((r) -> (r.isWin(username) ? 1 : 0)).iterator());
+            statEmbed.appendDescription(String.format("\n**FFA Best Win Streak:** %d", streakFFA));
         }
         OptionalDouble avgPercentileFFA = replays.stream()
                 .filter((r) -> r.type.equals("classic") && r.hasPlayer(username) && r.turns >= 50)
