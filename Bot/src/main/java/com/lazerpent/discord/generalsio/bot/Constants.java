@@ -71,7 +71,7 @@ public class Constants {
                     .setReportCheatersChannel(714986176859340831L)
                     .setReportRecordChannel(900772522331619358L)
                     .setEventNotificationRole(896836627895320606L)
-                    .setApplicationCategory(979185658692243487L)
+                    .setApplicationCategory(1195175847469010964L)
                     .build()
     );
 

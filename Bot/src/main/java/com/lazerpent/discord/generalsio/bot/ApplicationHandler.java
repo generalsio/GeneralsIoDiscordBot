@@ -114,6 +114,7 @@ public class ApplicationHandler {
                                                 3. Why would you be a good fit for this role?
                                                 4. What experience do you have moderating other servers (if any)?
                                                 5. What is your time zone?
+                                                6. Is there anything else we should know?
                                                 ```
                                                 *Note: You may address more than just above*
                                                 There is no length restriction, make your answers as long or short as you need.

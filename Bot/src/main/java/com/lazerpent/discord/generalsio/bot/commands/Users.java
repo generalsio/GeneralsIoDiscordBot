@@ -41,8 +41,8 @@ public class Users {
     }
 
     @Command(name = "profile", perms = Constants.Perms.USER, desc = "Show generals username for the given " +
-                                                                    "Discord " +
-                                                                    "user, or the message author")
+            "Discord " +
+            "user, or the message author")
     public static void handleUserDiscord(@NotNull SlashCommandEvent cmd,
                                          @CommandParameter(name = "user",
                                                  desc = "The user mentioned on Discord",
@@ -61,12 +61,12 @@ public class Users {
     private static Message embedUser(Database.User user) {
         return new MessageBuilder()
                 .setEmbeds(new EmbedBuilder().setTitle("Profile", "https://generals.io/profiles/" +
-                                                                  Utils.encodeURI(user.username())).setColor(Constants.Colors.PRIMARY)
+                                Utils.encodeURI(user.username())).setColor(Constants.Colors.PRIMARY)
                         .appendDescription("**Username:** " + user.username())
                         .appendDescription("\n**Discord:** <@" + user.discordId() + ">")
                         .build())
                 .setActionRows(ActionRow.of(Button.link("https://generals.io/profiles/" +
-                                                        Utils.encodeURI(user.username()), "Visit")))
+                        Utils.encodeURI(user.username()), "Visit")))
                 .build();
     }
 
@@ -80,8 +80,8 @@ public class Users {
         Database.User curEntry = Database.User.fromId(Objects.requireNonNull(cmd.getMember()).getIdLong());
         if (curEntry != null) {
             Utils.replyError(cmd, "You're already registered as **" + curEntry.username() +
-                                  "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
-                                  "to change your username.");
+                    "**. Ask a <@&" + GUILD_INFO.moderatorRole + "> " +
+                    "to change your username.");
             return;
         }
 
@@ -105,30 +105,30 @@ public class Users {
         Database.addDiscordGenerals(cmd.getMember().getIdLong(), username);
         cmd.replyEmbeds(new EmbedBuilder().setTitle("Username Added").setColor(Constants.Colors.SUCCESS)
                 .setDescription(Objects.requireNonNull(cmd.getMember()).getAsMention() + " is now generals.io user " +
-                                "**" + username + "**").build()).queue();
+                        "**" + username + "**").build()).queue();
     }
 
-    @Command(name = "nickwupey", desc = "Bully Wuped", perms = Constants.Perms.MOD)
-    public static void handleNickWupey(@NotNull SlashCommandEvent cmd) {
-        if (Objects.requireNonNull(cmd.getMember()).getIdLong() == 175430325755838464L) {
-            Utils.replyError(cmd, "You can't bully yourself!");
-            return;
-        }
-
-        if (nickWupey == null) {
-            nickWupey = cmd.getUser().getIdLong();
-            Objects.requireNonNull(cmd.getGuild()).modifyNickname(Objects.requireNonNull(cmd.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
-        } else {
-            if (nickWupey == 356517795791503393L & cmd.getUser().getIdLong() != nickWupey) {
-                Utils.replyError(cmd, "Only Lazerpent can turn off nickwupey if Lazerpent turned it on");
-                return;
-            }
-            nickWupey = null;
-        }
-
-        cmd.replyEmbeds(new EmbedBuilder().setTitle("Auto-Nick").setDescription("Switched to " + (nickWupey == null ?
-                "disabled." : "enabled.")).build()).queue();
-    }
+//    @Command(name = "nickwupey", desc = "Bully Wuped", perms = Constants.Perms.MOD)
+//    public static void handleNickWupey(@NotNull SlashCommandEvent cmd) {
+//        if (Objects.requireNonNull(cmd.getMember()).getIdLong() == 175430325755838464L) {
+//            Utils.replyError(cmd, "You can't bully yourself!");
+//            return;
+//        }
+//
+//        if (nickWupey == null) {
+//            nickWupey = cmd.getUser().getIdLong();
+//            Objects.requireNonNull(cmd.getGuild()).modifyNickname(Objects.requireNonNull(cmd.getGuild().retrieveMemberById(175430325755838464L).complete()), "Wupey").queue();
+//        } else {
+//            if (nickWupey == 356517795791503393L & cmd.getUser().getIdLong() != nickWupey) {
+//                Utils.replyError(cmd, "Only Lazerpent can turn off nickwupey if Lazerpent turned it on");
+//                return;
+//            }
+//            nickWupey = null;
+//        }
+//
+//        cmd.replyEmbeds(new EmbedBuilder().setTitle("Auto-Nick").setDescription("Switched to " + (nickWupey == null ?
+//                "disabled." : "enabled.")).build()).queue();
+//    }
 
     @Command(name = "setname", desc = "Change generals.io username of user", perms =
             Constants.Perms.MOD)
@@ -147,21 +147,21 @@ public class Users {
                 .setEmbeds(
                         new EmbedBuilder().setTitle("Username Updated").setColor(Constants.Colors.SUCCESS)
                                 .setDescription(member.getAsMention() + " is now generals.io user **" + username +
-                                                "**").build()).build()).queue();
+                                        "**").build()).build()).queue();
     }
 
 
-    //    @Command(name = "apply", desc = "Open an application to become a generals.io Discord Moderator",
-//            perms = Constants.Perms.USER)
-    @SuppressWarnings("unused")
+    @Command(name = "apply", desc = "Open an application to become a generals.io Moderator",
+            perms = Constants.Perms.USER)
+//    @SuppressWarnings("unused")
     public static void apply(@NotNull SlashCommandEvent cmd) {
         ApplicationHandler.apply(cmd);
     }
 
 
-    //    @Command(name = "cancelapply", desc = "Cancel an application - can only be used in your application channel",
-//            perms = Constants.Perms.USER)
-    @SuppressWarnings("unused")
+    @Command(name = "cancelapply", desc = "Cancel an application - can only be used in your application channel",
+            perms = Constants.Perms.USER)
+//    @SuppressWarnings("unused")
     public static void cancelApply(@NotNull SlashCommandEvent cmd) {
         ApplicationHandler.cancelapply(cmd);
     }
