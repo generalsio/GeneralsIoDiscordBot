@@ -39,7 +39,7 @@ public class Commands extends ListenerAdapter {
 
     static {
         List<Method> methods = new ArrayList<>(Arrays.asList(Commands.class.getDeclaredMethods()));
-        Class<?>[] classes = {Game.class, Hill.class, Stats.class, Users.class, Announcements.class};
+        Class<?>[] classes = {Game.class, /*Hill.class, Stats.class,*/ Users.class, Announcements.class};
 
         for (Class<?> classCamelCase : classes) {
             if (classCamelCase.getAnnotation(Category.class) != null) {
